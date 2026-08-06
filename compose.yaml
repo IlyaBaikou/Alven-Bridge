@@ -1,0 +1,26 @@
+services:
+  bridge:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7433:7433"
+    environment:
+      Bridge__ControlPlaneBaseUrl: ${BRIDGE_CONTROL_PLANE_BASE_URL:-}
+      Bridge__Ai__Enabled: ${BRIDGE_AI_ENABLED:-true}
+      Bridge__Ai__Provider: ${BRIDGE_AI_PROVIDER:-ollama}
+      Bridge__Ai__BaseUrl: ${BRIDGE_AI_BASE_URL:-http://host.docker.internal:11434/v1/}
+      Bridge__Ai__AllowedModels__0: ${BRIDGE_AI_ALLOWED_MODELS:-}
+    volumes:
+      - bridge-state:/var/lib/alven-bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+volumes:
+  bridge-state:

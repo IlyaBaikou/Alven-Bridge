@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Alven.Bridge/Alven.Bridge.csproj" />
+  <Project Path="tests/Alven.Bridge.Tests/Alven.Bridge.Tests.csproj" />
+</Solution>

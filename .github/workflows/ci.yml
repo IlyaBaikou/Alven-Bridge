@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore Alven.Bridge.slnx
+      - run: dotnet format Alven.Bridge.slnx --verify-no-changes --no-restore
+      - run: dotnet test Alven.Bridge.slnx --no-restore
+      - run: docker build .
