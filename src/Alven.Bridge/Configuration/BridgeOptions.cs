@@ -2,12 +2,14 @@ namespace Alven.Bridge.Configuration;
 
 public sealed class BridgeOptions
 {
+    public const long MaximumRelayFileBytes = 5_000_000;
     public const string SectionName = "Bridge";
 
     public string StateDirectory { get; init; } = ".bridge-state";
     public string ControlPlaneBaseUrl { get; init; } = string.Empty;
     public int PollIntervalSeconds { get; init; } = 10;
     public int HeartbeatIntervalSeconds { get; init; } = 30;
+    public int ReceiptRetentionDays { get; init; } = 30;
     public LocalAiOptions Ai { get; init; } = new();
     public LocalStorageOptions Storage { get; init; } = new();
 }
@@ -27,7 +29,7 @@ public sealed class LocalStorageOptions
     public bool Enabled { get; init; }
     public string RootPath { get; init; } = "/data/family-files";
     public bool ReadOnly { get; init; }
-    public long MaximumFileBytes { get; init; } = 100_000_000;
+    public long MaximumFileBytes { get; init; } = BridgeOptions.MaximumRelayFileBytes;
 }
 
 public static class BridgeOptionsRules
@@ -41,6 +43,8 @@ public static class BridgeOptionsRules
             errors.Add("Bridge:PollIntervalSeconds must be between 2 and 300.");
         if (options.HeartbeatIntervalSeconds is < 5 or > 600)
             errors.Add("Bridge:HeartbeatIntervalSeconds must be between 5 and 600.");
+        if (options.ReceiptRetentionDays is < 1 or > 90)
+            errors.Add("Bridge:ReceiptRetentionDays must be between 1 and 90.");
 
         if (!string.IsNullOrWhiteSpace(options.ControlPlaneBaseUrl))
         {
@@ -67,8 +71,11 @@ public static class BridgeOptionsRules
             if (string.IsNullOrWhiteSpace(options.Storage.RootPath)
                 || !Path.IsPathFullyQualified(options.Storage.RootPath))
                 errors.Add("Bridge:Storage:RootPath must be an absolute mounted path.");
-            if (options.Storage.MaximumFileBytes is < 1_000_000 or > 5_000_000_000)
-                errors.Add("Bridge:Storage:MaximumFileBytes must be between 1 MB and 5 GB.");
+            if (options.Storage.MaximumFileBytes is < 1_000_000
+                or > BridgeOptions.MaximumRelayFileBytes)
+            {
+                errors.Add("Bridge:Storage:MaximumFileBytes must be between 1 MB and the 5 MB preview relay limit.");
+            }
         }
 
         return errors;

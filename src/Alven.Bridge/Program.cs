@@ -45,6 +45,19 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "healthy" }));
+app.MapGet("/health/ready", async (BridgeRuntimeState state,
+    CancellationToken cancellationToken) =>
+{
+    var status = await state.SnapshotAsync(cancellationToken);
+    var capabilityReady = status.Capabilities.Count > 0
+        && status.AiHealth is "healthy" or "disabled"
+        && status.StorageHealth is "healthy" or "disabled";
+    return status.Paired && status.ControlPlaneConfigured && capabilityReady
+        && status.LastControlPlaneContactAt is not null
+        ? Results.Ok(new { status = "ready" })
+        : Results.Json(new { status = "not-ready" }, statusCode:
+            StatusCodes.Status503ServiceUnavailable);
+});
 app.MapGet("/api/v1/status", async (BridgeRuntimeState state,
     CancellationToken cancellationToken) => Results.Ok(await state.SnapshotAsync(cancellationToken)));
 app.MapGet("/api/v1/setup/session", (SetupSession session,

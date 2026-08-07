@@ -14,6 +14,7 @@ public sealed class BridgeRuntimeState(
     ILocalStorageClient storageClient)
 {
     private string? lastSafeFailure;
+    private long lastControlPlaneContactUnixMilliseconds;
 
     public IReadOnlyList<string> Capabilities
     {
@@ -44,6 +45,10 @@ public sealed class BridgeRuntimeState(
 
     public void ReportHealthy() => Volatile.Write(ref lastSafeFailure, null);
 
+    public void ReportControlPlaneContact(DateTimeOffset contactedAt) =>
+        Interlocked.Exchange(ref lastControlPlaneContactUnixMilliseconds,
+            contactedAt.ToUnixTimeMilliseconds());
+
     public async Task<BridgeRuntimeStatus> SnapshotAsync(CancellationToken cancellationToken)
     {
         var credential = await credentialStore.ReadAsync(cancellationToken);
@@ -52,6 +57,7 @@ public sealed class BridgeRuntimeState(
             : await aiClient.IsHealthyAsync(cancellationToken) ? "healthy" : "unavailable";
         var storageHealth = !settings.StorageEnabled ? "disabled"
             : await storageClient.IsHealthyAsync(cancellationToken) ? "healthy" : "unavailable";
+        var lastContact = Interlocked.Read(ref lastControlPlaneContactUnixMilliseconds);
         return new BridgeRuntimeStatus(
             credential is not null,
             credential?.InstallationId,
@@ -60,6 +66,7 @@ public sealed class BridgeRuntimeState(
             Version,
             Volatile.Read(ref lastSafeFailure),
             aiHealth,
-            storageHealth);
+            storageHealth,
+            lastContact == 0 ? null : DateTimeOffset.FromUnixTimeMilliseconds(lastContact));
     }
 }

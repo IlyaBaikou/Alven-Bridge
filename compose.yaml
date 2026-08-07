@@ -14,7 +14,8 @@ services:
       Bridge__Storage__Enabled: ${BRIDGE_STORAGE_ENABLED:-false}
       Bridge__Storage__RootPath: /data/family-files
       Bridge__Storage__ReadOnly: ${BRIDGE_STORAGE_READ_ONLY:-false}
-      Bridge__Storage__MaximumFileBytes: ${BRIDGE_STORAGE_MAXIMUM_FILE_BYTES:-100000000}
+      Bridge__Storage__MaximumFileBytes: ${BRIDGE_STORAGE_MAXIMUM_FILE_BYTES:-5000000}
+      Bridge__ReceiptRetentionDays: ${BRIDGE_RECEIPT_RETENTION_DAYS:-30}
     volumes:
       - bridge-state:/var/lib/alven-bridge
       - type: bind

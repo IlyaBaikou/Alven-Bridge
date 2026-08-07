@@ -45,6 +45,11 @@ in the hosted Alven service.
 - optional: Ollama/LM Studio and enough memory for the selected model;
 - optional: an already mounted local or NAS folder for family files.
 
+The current preview relay supports files up to **5 MB each**. The wizard and worker reject a larger
+configured limit because the v1 control-plane protocol is bounded and non-streaming. Larger-file
+streaming will ship as a versioned protocol capability; Bridge does not silently accept a limit it
+cannot deliver end to end.
+
 Bridge does not need a public IP, an inbound firewall rule, Kubernetes, or a separate database.
 
 ## Five-minute setup
@@ -103,6 +108,12 @@ through a router or public reverse proxy.
 The local page and `GET /api/v1/diagnostics` report capability health without returning prompts,
 responses, model names, endpoints, file names, paths, or credentials.
 
+**Check readiness**
+
+`GET http://127.0.0.1:7433/health/ready` becomes healthy only after pairing, a successful control-plane
+contact, and healthy enabled capabilities. Container liveness remains separate so an unpaired Bridge
+can stay running while you finish the wizard.
+
 **Upgrade**
 
 ```bash
@@ -112,6 +123,17 @@ docker compose up -d
 
 The `bridge-state` volume and mounted family folder survive container replacement. Review release notes
 before crossing a major version.
+
+**Back up and restore Bridge state**
+
+The mounted family folder must be backed up by your normal NAS or host backup. Bridge does not claim
+that a successful file write is an independent backup.
+
+For the small `bridge-state` volume, stop Bridge, take a filesystem or Docker-volume snapshot, and start
+it again. Restore only to a trusted host, keep the files owner-readable only, and preserve the mounted
+storage identity marker. After restore, open the wizard and verify pairing plus both capability cards.
+If the restored credential was revoked in Alven, erase the restored state and pair again; never edit the
+credential JSON. See [operations and recovery](docs/OPERATIONS.md) for commands and failure handling.
 
 **Roll back**
 
@@ -129,7 +151,8 @@ credential and job receipts. Removing Bridge never removes family files from the
 The worker, setup wizard, Docker image, AI adapter, mounted-storage adapter, control-plane protocol, tests,
 and threat model are inspectable in this repository under the MIT License. Credentials are held in a
 protected local state volume and are never shown again after pairing. Jobs are typed, bounded, replay
-protected, and completed only through the outbound control plane.
+protected, and completed only through the outbound control plane. Crash-safe job receipts expire after
+the configured retention period (30 days by default), and diagnostics expose only their count and age.
 
 Please read [SECURITY.md](SECURITY.md) before exposing a new deployment and report vulnerabilities through
 the private process described there. Architecture and trust boundaries are documented in

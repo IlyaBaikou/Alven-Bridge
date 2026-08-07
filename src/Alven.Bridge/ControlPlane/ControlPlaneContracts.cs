@@ -48,4 +48,5 @@ public sealed record BridgeRuntimeStatus(
     string Version,
     string? LastSafeFailure,
     string AiHealth,
-    string StorageHealth);
+    string StorageHealth,
+    DateTimeOffset? LastControlPlaneContactAt);

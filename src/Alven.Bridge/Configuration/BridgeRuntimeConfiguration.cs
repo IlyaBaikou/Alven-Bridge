@@ -15,7 +15,8 @@ public sealed record BridgeEditableSettings(
     bool StorageEnabled,
     string StorageRootPath,
     bool StorageReadOnly,
-    long StorageMaximumFileBytes);
+    long StorageMaximumFileBytes,
+    int ReceiptRetentionDays);
 
 public sealed class BridgeRuntimeConfiguration : IDisposable
 {
@@ -54,7 +55,8 @@ public sealed class BridgeRuntimeConfiguration : IDisposable
             request.StorageEnabled,
             request.StorageRootPath.Trim(),
             request.StorageReadOnly,
-            request.StorageMaximumFileBytes);
+            request.StorageMaximumFileBytes,
+            request.ReceiptRetentionDays);
         var errors = Validate(candidate);
         if (errors.Count > 0) throw new BridgeConfigurationException(errors);
 
@@ -94,13 +96,16 @@ public sealed class BridgeRuntimeConfiguration : IDisposable
         options.HeartbeatIntervalSeconds, options.Ai.Enabled, options.Ai.Provider,
         options.Ai.BaseUrl, options.Ai.AllowedModels, options.Storage.Enabled,
         options.Storage.RootPath, options.Storage.ReadOnly,
-        options.Storage.MaximumFileBytes);
+        options.Storage.MaximumFileBytes, options.ReceiptRetentionDays);
 
     private static BridgeEditableSettings? Load(string path)
     {
         if (!File.Exists(path)) return null;
         using var input = File.OpenRead(path);
-        return JsonSerializer.Deserialize<BridgeEditableSettings>(input, JsonOptions);
+        var loaded = JsonSerializer.Deserialize<BridgeEditableSettings>(input, JsonOptions);
+        return loaded is { ReceiptRetentionDays: 0 }
+            ? loaded with { ReceiptRetentionDays = 30 }
+            : loaded;
     }
 
     private static IReadOnlyList<string> Validate(BridgeEditableSettings settings)
@@ -111,6 +116,7 @@ public sealed class BridgeRuntimeConfiguration : IDisposable
             ControlPlaneBaseUrl = settings.ControlPlaneBaseUrl,
             PollIntervalSeconds = settings.PollIntervalSeconds,
             HeartbeatIntervalSeconds = settings.HeartbeatIntervalSeconds,
+            ReceiptRetentionDays = settings.ReceiptRetentionDays,
             Ai = new LocalAiOptions
             {
                 Enabled = settings.AiEnabled,

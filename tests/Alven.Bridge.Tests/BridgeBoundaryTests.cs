@@ -35,6 +35,8 @@ public sealed class BridgeBoundaryTests : IAsyncLifetime
         Assert.False(status.Paired);
         Assert.Null(status.InstallationId);
         Assert.Contains("ai.openai-compatible", status.Capabilities);
+        using var readiness = await client.GetAsync("/health/ready");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, readiness.StatusCode);
     }
 
     [Fact]
@@ -273,6 +275,30 @@ public sealed class BridgeBoundaryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ExpiredJobReceiptsArePrunedWithoutTouchingCurrentReceipts()
+    {
+        await using var factory = Factory();
+        _ = factory.CreateClient();
+        var receipts = factory.Services.GetRequiredService<IBridgeJobReceiptStore>();
+        using var payload = JsonDocument.Parse("{}");
+        var oldJob = new BridgeJobEnvelope(Guid.NewGuid(), "old", "ai.openai-compatible",
+            payload.RootElement.Clone(), DateTimeOffset.UtcNow.AddMinutes(1));
+        var currentJob = oldJob with { JobId = Guid.NewGuid(), LeaseToken = "current" };
+        var result = new BridgeJobProcessingResult("completed", null, null);
+        await receipts.SaveAsync(oldJob, result, CancellationToken.None);
+        await receipts.SaveAsync(currentJob, result, CancellationToken.None);
+        File.SetLastWriteTimeUtc(Path.Combine(stateDirectory, "job-receipts",
+            $"{oldJob.JobId:D}.json"), DateTime.UtcNow.AddDays(-31));
+
+        var removed = await receipts.PruneExpiredAsync(DateTimeOffset.UtcNow.AddDays(-30),
+            CancellationToken.None);
+
+        Assert.Equal(1, removed);
+        Assert.Null(await receipts.ReadAsync(oldJob, CancellationToken.None));
+        Assert.NotNull(await receipts.ReadAsync(currentJob, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task AdministrationRejectsNonLocalHost()
     {
         await using var factory = Factory();
@@ -342,7 +368,8 @@ public sealed class BridgeBoundaryTests : IAsyncLifetime
             storageEnabled = false,
             storageRootPath = "/data/family-files",
             storageReadOnly = false,
-            storageMaximumFileBytes = 100_000_000,
+            storageMaximumFileBytes = 5_000_000,
+            receiptRetentionDays = 30,
         });
 
         Assert.Contains("Your home stays yours", html, StringComparison.Ordinal);
@@ -359,7 +386,7 @@ public sealed class BridgeBoundaryTests : IAsyncLifetime
 
     private WebApplicationFactory<Program> Factory(Action<IServiceCollection>? configure = null,
         string? storageRoot = null, bool storageReadOnly = false,
-        long storageMaximumFileBytes = 100_000_000) =>
+        long storageMaximumFileBytes = 5_000_000) =>
         new BridgeFactory(stateDirectory, storageRoot, storageReadOnly,
             storageMaximumFileBytes, configure);
 

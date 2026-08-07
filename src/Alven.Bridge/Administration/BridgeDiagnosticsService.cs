@@ -13,14 +13,17 @@ public sealed record BridgeDiagnostics(
     IReadOnlyList<string> Capabilities,
     string AiHealth,
     string StorageHealth,
+    DateTimeOffset? LastControlPlaneContactAt,
     string? LastSafeFailure,
     int PendingReceiptCount,
     DateTimeOffset? OldestReceiptAt,
     long StateBytes,
+    int ReceiptRetentionDays,
     string RedactionNotice);
 
 internal sealed class BridgeDiagnosticsService(
     BridgeRuntimeState runtimeState,
+    BridgeRuntimeConfiguration configuration,
     IOptions<BridgeOptions> options)
 {
     private readonly string stateDirectory = Path.GetFullPath(options.Value.StateDirectory);
@@ -35,11 +38,13 @@ internal sealed class BridgeDiagnosticsService(
             ? Directory.GetFiles(stateDirectory, "*", SearchOption.AllDirectories) : [];
         return new(DateTimeOffset.UtcNow, status.Version, status.Paired,
             status.ControlPlaneConfigured, status.Capabilities, status.AiHealth,
-            status.StorageHealth, status.LastSafeFailure, receiptFiles.Length,
+            status.StorageHealth, status.LastControlPlaneContactAt, status.LastSafeFailure,
+            receiptFiles.Length,
             receiptFiles.Length == 0 ? null : receiptFiles
                 .Select(path => new FileInfo(path).CreationTimeUtc)
                 .Min(),
             stateFiles.Sum(path => new FileInfo(path).Length),
+            configuration.Snapshot().ReceiptRetentionDays,
             "No prompts, results, file names, file bytes, paths, URLs, models, tokens, or secrets are included.");
     }
 }

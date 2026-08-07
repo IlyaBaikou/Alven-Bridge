@@ -18,7 +18,8 @@ public sealed record ConfigureBridgeRequest(
     bool StorageEnabled,
     string StorageRootPath,
     bool StorageReadOnly,
-    long StorageMaximumFileBytes);
+    long StorageMaximumFileBytes,
+    int ReceiptRetentionDays);
 
 public sealed class SetupSession
 {

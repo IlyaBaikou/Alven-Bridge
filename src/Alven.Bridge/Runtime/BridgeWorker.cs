@@ -18,6 +18,7 @@ internal sealed class BridgeWorker(
         LoggerMessage.Define(LogLevel.Warning, new EventId(1, "ControlPlaneUnavailable"),
             "Bridge control plane is unavailable; retrying without job content.");
     private DateTimeOffset nextHeartbeatAt;
+    private DateTimeOffset nextReceiptPruneAt;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -44,19 +45,27 @@ internal sealed class BridgeWorker(
 
     private async Task RunOnceAsync(CancellationToken cancellationToken)
     {
-        var credential = await credentialStore.ReadAsync(cancellationToken);
         var settings = configuration.Snapshot();
+        if (nextReceiptPruneAt <= DateTimeOffset.UtcNow)
+        {
+            await receiptStore.PruneExpiredAsync(
+                DateTimeOffset.UtcNow.AddDays(-settings.ReceiptRetentionDays), cancellationToken);
+            nextReceiptPruneAt = DateTimeOffset.UtcNow.AddHours(1);
+        }
+        var credential = await credentialStore.ReadAsync(cancellationToken);
         if (credential is null || string.IsNullOrWhiteSpace(settings.ControlPlaneBaseUrl)) return;
         if (nextHeartbeatAt <= DateTimeOffset.UtcNow)
         {
             await controlPlane.SendHeartbeatAsync(credential,
                 new BridgeHeartbeatRequest(runtimeState.Version, runtimeState.Capabilities,
                     DateTimeOffset.UtcNow), cancellationToken);
+            runtimeState.ReportControlPlaneContact(DateTimeOffset.UtcNow);
             nextHeartbeatAt = DateTimeOffset.UtcNow.AddSeconds(
                 settings.HeartbeatIntervalSeconds);
         }
 
         var job = await controlPlane.PollJobAsync(credential, cancellationToken);
+        runtimeState.ReportControlPlaneContact(DateTimeOffset.UtcNow);
         if (job is null)
         {
             runtimeState.ReportHealthy();
@@ -82,6 +91,7 @@ internal sealed class BridgeWorker(
         await controlPlane.CompleteJobAsync(credential, job.JobId,
             new BridgeJobCompletionRequest(job.LeaseToken, result.Outcome, result.Result,
                 result.SafeFailureCode, DateTimeOffset.UtcNow), cancellationToken);
+        runtimeState.ReportControlPlaneContact(DateTimeOffset.UtcNow);
         await receiptStore.DeleteAsync(job.JobId, cancellationToken);
         if (result.Outcome == "completed") runtimeState.ReportHealthy();
         else runtimeState.ReportFailure(result.SafeFailureCode ?? "job-failed");

@@ -15,6 +15,7 @@ public interface IBridgeJobReceiptStore
     Task SaveAsync(BridgeJobEnvelope job, BridgeJobProcessingResult result,
         CancellationToken cancellationToken);
     Task DeleteAsync(Guid jobId, CancellationToken cancellationToken);
+    Task<int> PruneExpiredAsync(DateTimeOffset olderThan, CancellationToken cancellationToken);
 }
 
 internal sealed class BridgeJobReceiptStore : IBridgeJobReceiptStore
@@ -77,6 +78,22 @@ internal sealed class BridgeJobReceiptStore : IBridgeJobReceiptStore
         var path = PathFor(jobId);
         if (File.Exists(path)) File.Delete(path);
         return Task.CompletedTask;
+    }
+
+    public Task<int> PruneExpiredAsync(DateTimeOffset olderThan,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Directory.Exists(root)) return Task.FromResult(0);
+        var removed = 0;
+        foreach (var path in Directory.GetFiles(root, "*.json", SearchOption.TopDirectoryOnly))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (File.GetLastWriteTimeUtc(path) >= olderThan.UtcDateTime) continue;
+            File.Delete(path);
+            removed++;
+        }
+        return Task.FromResult(removed);
     }
 
     private string PathFor(Guid jobId) => Path.Combine(root, $"{jobId:D}.json");
