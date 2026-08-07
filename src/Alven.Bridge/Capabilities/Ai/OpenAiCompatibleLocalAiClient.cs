@@ -29,9 +29,28 @@ internal sealed class OpenAiCompatibleLocalAiClient(
             || request.ResponseSchema.GetRawText().Length > 64_000)
             throw new LocalAiException("input-limit-exceeded");
 
-        var endpoint = Endpoint(settings.AiBaseUrl, "chat/completions");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(request.TimeoutSeconds));
+        var content = IsOllama(settings.AiProvider)
+            ? await CompleteWithOllamaAsync(settings, request, timeout.Token)
+            : await CompleteWithOpenAiCompatibleAsync(settings, request, timeout.Token);
+        if (string.IsNullOrWhiteSpace(content)) throw new LocalAiException("empty-result");
+        try
+        {
+            using var result = JsonDocument.Parse(content);
+            return new LocalAiJobResult(result.RootElement.GetRawText(), settings.AiProvider,
+                request.Model);
+        }
+        catch (JsonException exception)
+        {
+            throw new LocalAiException("invalid-json-result", exception);
+        }
+    }
+
+    private async Task<string?> CompleteWithOpenAiCompatibleAsync(
+        BridgeEditableSettings settings, LocalAiJobRequest request,
+        CancellationToken cancellationToken)
+    {
         var body = new
         {
             model = request.Model,
@@ -53,23 +72,53 @@ internal sealed class OpenAiCompatibleLocalAiClient(
                 },
             },
         };
-        using var response = await httpClient.PostAsJsonAsync(endpoint, body,
-            JsonOptions, timeout.Token);
+        using var response = await httpClient.PostAsJsonAsync(
+            Endpoint(settings.AiBaseUrl, "chat/completions"), body, JsonOptions,
+            cancellationToken);
         response.EnsureSuccessStatusCode();
         using var document = await JsonDocument.ParseAsync(
-            await response.Content.ReadAsStreamAsync(timeout.Token), cancellationToken: timeout.Token);
-        var content = document.RootElement.GetProperty("choices")[0]
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        return document.RootElement.GetProperty("choices")[0]
             .GetProperty("message").GetProperty("content").GetString();
-        if (string.IsNullOrWhiteSpace(content)) throw new LocalAiException("empty-result");
-        try
+    }
+
+    private async Task<string?> CompleteWithOllamaAsync(BridgeEditableSettings settings,
+        LocalAiJobRequest request, CancellationToken cancellationToken)
+    {
+        // Ollama's OpenAI compatibility layer converts a JSON schema to a grammar. Large Alven
+        // schemas can exceed its repetition limits, so use the native JSON mode and keep schema
+        // enforcement in Alven's control plane.
+        var schemaInstruction = $"""
+            {request.SystemInstruction}
+
+            Return only one JSON object matching this JSON Schema. Do not use Markdown fences.
+            {request.ResponseSchema.GetRawText()}
+            """;
+        var body = new
         {
-            using var result = JsonDocument.Parse(content);
-            return new LocalAiJobResult(result.RootElement.GetRawText(), settings.AiProvider, request.Model);
-        }
-        catch (JsonException exception)
-        {
-            throw new LocalAiException("invalid-json-result", exception);
-        }
+            model = request.Model,
+            messages = new object[]
+            {
+                new { role = "system", content = schemaInstruction },
+                new { role = "user", content = request.Input },
+            },
+            stream = false,
+            format = "json",
+            options = new
+            {
+                temperature = 0,
+                num_predict = request.MaximumOutputTokens,
+            },
+        };
+        using var response = await httpClient.PostAsJsonAsync(
+            OllamaEndpoint(settings.AiBaseUrl, "api/chat"), body, JsonOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        return document.RootElement.GetProperty("message").GetProperty("content").GetString();
     }
 
     public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken)
@@ -79,7 +128,9 @@ internal sealed class OpenAiCompatibleLocalAiClient(
         try
         {
             using var response = await httpClient.GetAsync(
-                Endpoint(settings.AiBaseUrl, "models"), cancellationToken);
+                IsOllama(settings.AiProvider)
+                    ? OllamaEndpoint(settings.AiBaseUrl, "api/tags")
+                    : Endpoint(settings.AiBaseUrl, "models"), cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch (Exception exception) when (exception is HttpRequestException
@@ -91,6 +142,22 @@ internal sealed class OpenAiCompatibleLocalAiClient(
 
     private static Uri Endpoint(string baseUrl, string path) =>
         new(new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute), path);
+
+    private static Uri OllamaEndpoint(string baseUrl, string path)
+    {
+        var source = new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute);
+        var builder = new UriBuilder(source);
+        var rootPath = builder.Path.TrimEnd('/');
+        if (rootPath.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+            rootPath = rootPath[..^3];
+        builder.Path = $"{rootPath.TrimEnd('/')}/{path.TrimStart('/')}";
+        builder.Query = string.Empty;
+        builder.Fragment = string.Empty;
+        return builder.Uri;
+    }
+
+    private static bool IsOllama(string provider) =>
+        string.Equals(provider, "ollama", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class LocalAiException(string safeCode, Exception? inner = null)
