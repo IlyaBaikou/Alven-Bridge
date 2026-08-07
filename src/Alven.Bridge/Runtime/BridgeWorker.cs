@@ -2,7 +2,6 @@ using Alven.Bridge.Configuration;
 using Alven.Bridge.ControlPlane;
 using Alven.Bridge.Jobs;
 using Alven.Bridge.Security;
-using Microsoft.Extensions.Options;
 
 namespace Alven.Bridge.Runtime;
 
@@ -10,8 +9,9 @@ internal sealed class BridgeWorker(
     IInstallationCredentialStore credentialStore,
     IBridgeControlPlaneClient controlPlane,
     IBridgeJobProcessor processor,
+    IBridgeJobReceiptStore receiptStore,
     BridgeRuntimeState runtimeState,
-    IOptions<BridgeOptions> options,
+    BridgeRuntimeConfiguration configuration,
     ILogger<BridgeWorker> logger) : BackgroundService
 {
     private static readonly Action<ILogger, Exception?> ControlPlaneUnavailable =
@@ -37,21 +37,23 @@ internal sealed class BridgeWorker(
                 runtimeState.ReportFailure("control-plane-unavailable");
                 ControlPlaneUnavailable(logger, exception);
             }
-            await Task.Delay(TimeSpan.FromSeconds(options.Value.PollIntervalSeconds), stoppingToken);
+            await Task.Delay(TimeSpan.FromSeconds(
+                configuration.Snapshot().PollIntervalSeconds), stoppingToken);
         }
     }
 
     private async Task RunOnceAsync(CancellationToken cancellationToken)
     {
         var credential = await credentialStore.ReadAsync(cancellationToken);
-        if (credential is null || string.IsNullOrWhiteSpace(options.Value.ControlPlaneBaseUrl)) return;
+        var settings = configuration.Snapshot();
+        if (credential is null || string.IsNullOrWhiteSpace(settings.ControlPlaneBaseUrl)) return;
         if (nextHeartbeatAt <= DateTimeOffset.UtcNow)
         {
             await controlPlane.SendHeartbeatAsync(credential,
                 new BridgeHeartbeatRequest(runtimeState.Version, runtimeState.Capabilities,
                     DateTimeOffset.UtcNow), cancellationToken);
             nextHeartbeatAt = DateTimeOffset.UtcNow.AddSeconds(
-                options.Value.HeartbeatIntervalSeconds);
+                settings.HeartbeatIntervalSeconds);
         }
 
         var job = await controlPlane.PollJobAsync(credential, cancellationToken);
@@ -60,10 +62,27 @@ internal sealed class BridgeWorker(
             runtimeState.ReportHealthy();
             return;
         }
-        var result = await processor.ProcessAsync(job, cancellationToken);
+        BridgeJobProcessingResult? result;
+        try
+        {
+            result = await receiptStore.ReadAsync(job, cancellationToken);
+        }
+        catch (BridgeJobReceiptException exception)
+        {
+            result = new BridgeJobProcessingResult("rejected", null, exception.SafeCode);
+        }
+        if (result is null)
+        {
+            using var lease = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var remaining = job.ExpiresAt - DateTimeOffset.UtcNow;
+            if (remaining > TimeSpan.Zero) lease.CancelAfter(remaining);
+            result = await processor.ProcessAsync(job, lease.Token);
+            await receiptStore.SaveAsync(job, result, cancellationToken);
+        }
         await controlPlane.CompleteJobAsync(credential, job.JobId,
             new BridgeJobCompletionRequest(job.LeaseToken, result.Outcome, result.Result,
                 result.SafeFailureCode, DateTimeOffset.UtcNow), cancellationToken);
+        await receiptStore.DeleteAsync(job.JobId, cancellationToken);
         if (result.Outcome == "completed") runtimeState.ReportHealthy();
         else runtimeState.ReportFailure(result.SafeFailureCode ?? "job-failed");
     }

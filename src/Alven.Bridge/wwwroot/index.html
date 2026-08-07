@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Alven Bridge setup</title>
+  <style>
+    :root{--ink:#18362f;--muted:#66756e;--paper:#f8f4ec;--card:#fffdf8;--moss:#dfe8dc;--line:#d9ddd5;--accent:#285d4c;--danger:#9a493d}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 5%,#e4eadf 0,transparent 31%),linear-gradient(150deg,#fbf7ef,#f2eee5);color:var(--ink);font:15px/1.5 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}.shell{width:min(920px,calc(100% - 32px));margin:0 auto;padding:54px 0 80px}.brand{display:flex;align-items:center;gap:13px;font-weight:700;letter-spacing:.02em}.mark{width:46px;height:46px;display:block;filter:drop-shadow(0 9px 18px rgba(40,93,76,.12))}.eyebrow{display:inline-flex;align-items:center;gap:8px;margin-top:44px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:rgba(255,253,248,.72);color:var(--muted);font-size:12px;font-weight:700}.eyebrow:before{content:"";width:7px;height:7px;border-radius:99px;background:#73917e;box-shadow:0 0 0 4px rgba(115,145,126,.13)}h1{font-family:Iowan Old Style,Palatino,Georgia,serif;font-size:clamp(42px,7vw,72px);font-weight:500;letter-spacing:-.045em;line-height:1.01;margin:17px 0 16px;max-width:760px}.lead{font-size:18px;color:var(--muted);max-width:650px;margin:0 0 40px}.status{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px}.pill,.card{background:rgba(255,253,248,.88);border:1px solid var(--line);box-shadow:0 16px 50px rgba(45,61,53,.06)}.pill{position:relative;overflow:hidden;border-radius:18px;padding:15px 17px}.pill:after{content:"";position:absolute;right:-18px;top:-22px;width:58px;height:58px;border-radius:50%;background:rgba(223,232,220,.65)}.pill small,label small{display:block;color:var(--muted);font-size:11px;font-weight:750;letter-spacing:.09em;text-transform:uppercase}.pill strong{display:block;margin-top:5px}.card{border-radius:28px;padding:28px;margin-top:18px}.card h2{font-family:Iowan Old Style,Palatino,Georgia,serif;font-size:29px;font-weight:500;margin:0}.card>p{color:var(--muted);margin:7px 0 24px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}label{display:block}input[type=text],input[type=url],input[type=number],input[type=password]{width:100%;margin-top:7px;border:1px solid var(--line);background:#fff;border-radius:14px;padding:13px 14px;color:var(--ink);font:inherit;outline:none}input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(40,93,76,.1)}.toggle{display:flex;align-items:center;gap:10px;min-height:48px;padding:10px 0}.toggle input{width:19px;height:19px;accent-color:var(--accent)}.actions{display:flex;gap:11px;align-items:center;margin-top:22px;flex-wrap:wrap}button{border:0;border-radius:999px;padding:12px 19px;font:700 14px/1 inherit;cursor:pointer;background:var(--accent);color:white;box-shadow:0 7px 18px rgba(40,93,76,.14)}button.secondary{background:var(--moss);color:var(--ink);box-shadow:none}button:disabled{opacity:.5;cursor:wait}.note{font-size:13px;color:var(--muted)}#message{min-height:22px;margin-top:14px;font-weight:650}.error{color:var(--danger)}.ok{color:var(--accent)}footer{color:var(--muted);font-size:12px;text-align:center;margin-top:30px}@media(max-width:680px){.shell{padding-top:28px}.status,.grid{grid-template-columns:1fr}.eyebrow{margin-top:34px}.card{padding:21px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 160 160" aria-hidden="true"><rect width="160" height="160" rx="44" fill="#F7F2E9"/><path d="M31 119 77 32c1.3-2.5 4.9-2.5 6.2 0l46 87h-18.5L80 59.2 49.5 119H31Z" fill="#173D34"/><path d="M48 108c15.5-18.4 33.7-20.6 52.2-7.8 8.1 5.6 16.3 7.2 25.8 3.9l5.8 11.1c-13.9 5.8-26.9 3.6-39.2-4.8-13-8.9-24.2-7.2-35.5 6.2L48 108Z" fill="#A9BDAE"/></svg>
+      <span>Alven Bridge</span>
+    </div>
+    <div class="eyebrow">Private by architecture</div>
+    <h1>Your home stays yours.</h1>
+    <p class="lead">Connect private AI and family-owned storage without opening a port to the internet. Bridge only makes outbound connections to Alven.</p>
+    <section class="status">
+      <div class="pill"><small>Pairing</small><strong id="paired">Checking…</strong></div>
+      <div class="pill"><small>Private AI</small><strong id="aiStatus">Checking…</strong></div>
+      <div class="pill"><small>Family storage</small><strong id="storageStatus">Checking…</strong></div>
+    </section>
+
+    <form id="configuration" class="card">
+      <h2>1. Choose your capabilities</h2>
+      <p>Settings are stored only in the encrypted-by-host Docker volume. No model or NAS needs to be reachable from the public internet.</p>
+      <div class="grid">
+        <label><small>Alven control plane</small><input id="controlPlane" type="url" placeholder="https://api.alven.app" required></label>
+        <label><small>Allowed AI model</small><input id="models" type="text" placeholder="qwen3:8b"></label>
+        <label><small>Local AI endpoint</small><input id="aiBase" type="url" placeholder="http://host.docker.internal:11434/v1/"></label>
+        <label><small>Provider label</small><input id="aiProvider" type="text" placeholder="ollama"></label>
+        <label><small>Mounted storage path</small><input id="storageRoot" type="text" placeholder="/data/family-files"></label>
+        <label><small>Maximum file size (bytes)</small><input id="storageMax" type="number" min="1000000" step="1000000"></label>
+      </div>
+      <div class="grid">
+        <label class="toggle"><input id="aiEnabled" type="checkbox"><span>Enable private AI</span></label>
+        <label class="toggle"><input id="storageEnabled" type="checkbox"><span>Enable mounted family storage</span></label>
+        <label class="toggle"><input id="storageReadOnly" type="checkbox"><span>Mount storage read-only</span></label>
+      </div>
+      <div class="actions"><button id="save" type="submit">Save configuration</button><span class="note">Changes apply without rebuilding the container.</span></div>
+    </form>
+
+    <form id="pairing" class="card">
+      <h2>2. Pair this Bridge</h2>
+      <p>Create a one-time Bridge code in Alven, paste it here, and confirm the family name returned by the server.</p>
+      <label><small>One-time pairing code</small><input id="pairingCode" type="password" autocomplete="one-time-code" placeholder="XXXX-XXXX"></label>
+      <div class="actions"><button id="pair" type="submit">Pair with Alven</button><button id="unpair" class="secondary" type="button">Unpair this machine</button></div>
+      <div id="message" role="status" aria-live="polite"></div>
+    </form>
+    <footer>Open-source MIT software · outbound-only worker · credentials never appear on this page after pairing</footer>
+  </main>
+  <script>
+    let nonce='';
+    const $=id=>document.getElementById(id);
+    const message=(value,error=false)=>{$('message').textContent=value;$('message').className=error?'error':'ok'};
+    async function json(url,options={}){const response=await fetch(url,options);const body=response.status===204?null:await response.json().catch(()=>null);if(!response.ok)throw new Error(body?.errors?.join(' · ')||body?.code||`Request failed (${response.status})`);return body}
+    async function load(){const [session,status]=await Promise.all([json('/api/v1/setup/session'),json('/api/v1/status')]);nonce=session.nonce;const c=session.configuration;$('controlPlane').value=c.controlPlaneBaseUrl;$('models').value=c.aiAllowedModels.join(', ');$('aiBase').value=c.aiBaseUrl;$('aiProvider').value=c.aiProvider;$('storageRoot').value=c.storageRootPath;$('storageMax').value=c.storageMaximumFileBytes;$('aiEnabled').checked=c.aiEnabled;$('storageEnabled').checked=c.storageEnabled;$('storageReadOnly').checked=c.storageReadOnly;$('paired').textContent=status.paired?'Paired':'Not paired';$('aiStatus').textContent=status.aiHealth==='healthy'?'Ready':status.aiHealth==='disabled'?'Off':'Unavailable';$('storageStatus').textContent=status.storageHealth==='healthy'?(c.storageReadOnly?'Ready · read only':'Ready · read & write'):status.storageHealth==='disabled'?'Off':'Unavailable'}
+    $('configuration').addEventListener('submit',async event=>{event.preventDefault();$('save').disabled=true;try{await json('/api/v1/setup/configuration',{method:'PUT',headers:{'Content-Type':'application/json','X-Alven-Setup-Nonce':nonce},body:JSON.stringify({controlPlaneBaseUrl:$('controlPlane').value,pollIntervalSeconds:10,heartbeatIntervalSeconds:30,aiEnabled:$('aiEnabled').checked,aiProvider:$('aiProvider').value,aiBaseUrl:$('aiBase').value,aiAllowedModels:$('models').value.split(',').map(x=>x.trim()).filter(Boolean),storageEnabled:$('storageEnabled').checked,storageRootPath:$('storageRoot').value,storageReadOnly:$('storageReadOnly').checked,storageMaximumFileBytes:Number($('storageMax').value)})});message('Configuration saved. Bridge is ready for pairing.');await load()}catch(error){message(error.message,true)}finally{$('save').disabled=false}});
+    $('pairing').addEventListener('submit',async event=>{event.preventDefault();$('pair').disabled=true;try{const result=await json('/api/v1/pair',{method:'POST',headers:{'Content-Type':'application/json','X-Alven-Setup-Nonce':nonce},body:JSON.stringify({pairingCode:$('pairingCode').value})});$('pairingCode').value='';message(`Paired with ${result.workspaceDisplayName}.`);await load()}catch(error){message(error.message,true)}finally{$('pair').disabled=false}});
+    $('unpair').addEventListener('click',async()=>{if(!confirm('Unpair this Bridge? Alven will stop sending work to it.'))return;try{await json('/api/v1/pair',{method:'DELETE',headers:{'X-Alven-Setup-Nonce':nonce}});message('Bridge unpaired.');await load()}catch(error){if(error.message.includes('remote-revocation-unconfirmed')&&confirm('Alven is unreachable. Remove the local credential anyway? You must also revoke this Bridge in Alven when the service returns.')){await json('/api/v1/pair?forceLocal=true',{method:'DELETE',headers:{'X-Alven-Setup-Nonce':nonce}});message('Local credential removed. Revoke this Bridge in Alven too.');await load()}else message(error.message,true)}});
+    load().catch(error=>message(error.message,true));
+  </script>
+</body>
+</html>

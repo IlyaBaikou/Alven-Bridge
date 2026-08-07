@@ -7,6 +7,7 @@ namespace Alven.Bridge.Security;
 
 public sealed record InstallationCredential(
     Guid InstallationId,
+    Guid WorkspaceId,
     string Secret,
     DateTimeOffset PairedAt,
     int Generation);
@@ -38,6 +39,7 @@ internal sealed class InstallationCredentialStore : IInstallationCredentialStore
         var value = await JsonSerializer.DeserializeAsync<InstallationCredential>(input, JsonOptions,
             cancellationToken);
         return value is not null && value.InstallationId != Guid.Empty
+            && value.WorkspaceId != Guid.Empty
             && !string.IsNullOrWhiteSpace(value.Secret)
             ? value
             : throw new InvalidDataException("The installation credential file is invalid.");
@@ -48,7 +50,7 @@ internal sealed class InstallationCredentialStore : IInstallationCredentialStore
         cancellationToken.ThrowIfCancellationRequested();
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        return Task.FromResult(new InstallationCredential(Guid.NewGuid(), secret,
+        return Task.FromResult(new InstallationCredential(Guid.NewGuid(), Guid.Empty, secret,
             DateTimeOffset.UtcNow, 1));
     }
 

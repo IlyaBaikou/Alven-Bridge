@@ -1,0 +1,4 @@
+services:
+  bridge:
+    build: .
+    image: alven-bridge:development

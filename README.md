@@ -1,34 +1,139 @@
-# Alven Bridge
+<p align="center">
+  <img src="docs/assets/alven-bridge-mark.svg" width="112" alt="Alven Bridge">
+</p>
 
-Alven Bridge connects one Alven Family Workspace to user-operated capabilities without exposing a home
-network service to the internet.
+<h1 align="center">Alven Bridge</h1>
 
-The first supported capabilities are:
+<p align="center">
+  Your private AI and family-owned storage, connected to Alven without opening your home network to the internet.
+</p>
 
-- private AI through Ollama or LM Studio's OpenAI-compatible endpoint;
-- a mounted local or NAS folder as a later Family File Store capability.
+<p align="center">
+  <a href="#five-minute-setup">Quick start</a> ·
+  <a href="#what-it-connects">Capabilities</a> ·
+  <a href="SECURITY.md">Security</a> ·
+  <a href="SUPPORT.md">Support</a>
+</p>
 
-Bridge is an outbound-only, revocable worker. The hosted Alven backend remains responsible for User and
-Workspace authorization, typed job creation, result validation, and Smart Action settlement. A local AI
-result is always an untrusted proposal and consumes zero managed Smart Actions.
+![Alven Bridge local setup wizard](docs/assets/bridge-setup.png)
 
-## Quick start for development
+Alven Bridge is a small open-source service that runs on a computer, home server, or NAS. It connects
+one Alven Family Workspace to resources you operate yourself while the hosted Alven service continues to
+handle family permissions, validation, and synchronization.
 
-Requirements: .NET 10 SDK and an Ollama or LM Studio endpoint.
+The connection is **outbound only**. There is no inbound Alven tunnel, no router port to expose, and no
+Owner password copied to the machine. Every installation can be revoked from the Alven app.
+
+## What it connects
+
+| Capability | Works with | What stays under your control |
+| --- | --- | --- |
+| Private AI | Ollama, LM Studio, or another OpenAI-compatible endpoint | Model, endpoint, prompts processed locally, and compute |
+| Family storage | A mounted disk, server folder, or NAS share | Original family files and the physical storage |
+
+Private AI results are treated as untrusted proposals and must pass the same Alven authorization and
+validation rules as managed AI. They consume **zero Smart Actions**. Bridge storage is a file store, not a
+self-hosted copy of the Alven backend: users, permissions, structured records, and synchronization remain
+in the hosted Alven service.
+
+## System requirements
+
+- Docker Desktop 4.30+ or Docker Engine 26+ with Compose v2;
+- a 64-bit `amd64` or `arm64` Linux host (Docker Desktop also works on current macOS and Windows);
+- about 100 MB for Bridge itself, plus a small persistent state volume;
+- outbound HTTPS access to the Alven API;
+- optional: Ollama/LM Studio and enough memory for the selected model;
+- optional: an already mounted local or NAS folder for family files.
+
+Bridge does not need a public IP, an inbound firewall rule, Kubernetes, or a separate database.
+
+## Five-minute setup
+
+1. Download this repository and create your local environment file:
+
+   ```bash
+   cp .env.example .env
+   mkdir -p family-files
+   ```
+
+2. Start the published container:
+
+   ```bash
+   docker compose up -d
+   ```
+
+3. Open [http://127.0.0.1:7433](http://127.0.0.1:7433). Choose private AI, mounted storage, or both.
+
+4. In Alven, open **More → Storage & AI → Alven Bridge** and create a one-time pairing code. Paste it
+   into the local wizard. The code expires after ten minutes and works once.
+
+5. Confirm that the three status cards show the capabilities you intended to enable. You can close the
+   wizard; Bridge keeps working in the background.
+
+The published image is `ghcr.io/ilyabaikou/alven-bridge:latest` for `linux/amd64` and `linux/arm64`.
+Releases include provenance and an SBOM. To build the exact checked-out source locally:
 
 ```bash
-cp .env.example .env
-docker compose up --build
+docker compose -f compose.yaml -f compose.dev.yaml up -d --build
 ```
 
-Open `http://127.0.0.1:7433`. The service starts unpaired and does no remote work until a valid control
-plane URL and one-time Owner pairing code are supplied.
+## Connect a NAS or local folder
 
-No production endpoint, credential, tenant identifier, or household fixture belongs in this repository.
+Set `BRIDGE_STORAGE_HOST_PATH` in `.env` to an existing host folder or mounted NAS share, restart the
+container, then enable storage in the wizard. Bridge can see only this mounted root. Absolute paths,
+directory traversal, and symbolic-link escapes are rejected.
 
-## Status
+Set `BRIDGE_STORAGE_READ_ONLY=true` if Alven should read an existing archive without writing to it.
+Writable roots receive a hidden `.alven-bridge-mount-id` marker. It prevents Bridge from silently writing
+to the wrong disk when a mount disappears or is replaced; do not copy or remove that marker.
 
-This repository is an early security-first foundation. Compatibility and signed release channels will
-be published before external-family installation.
+## Run it on a remote server
 
-See [SECURITY.md](SECURITY.md), [THREAT_MODEL.md](THREAT_MODEL.md), and [SUPPORT.md](SUPPORT.md).
+The setup wizard intentionally listens on localhost. Reach a remote Bridge through an SSH tunnel:
+
+```bash
+ssh -L 7433:127.0.0.1:7433 user@your-server
+```
+
+Then open [http://127.0.0.1:7433](http://127.0.0.1:7433) on your own computer. Do not publish port 7433
+through a router or public reverse proxy.
+
+## Everyday operations
+
+The local page and `GET /api/v1/diagnostics` report capability health without returning prompts,
+responses, model names, endpoints, file names, paths, or credentials.
+
+**Upgrade**
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+The `bridge-state` volume and mounted family folder survive container replacement. Review release notes
+before crossing a major version.
+
+**Roll back**
+
+Pin the previous immutable release tag in `compose.yaml`, then run `docker compose up -d`. Keep the state
+volume and the storage mount identity marker.
+
+**Uninstall**
+
+First revoke the machine in **More → Storage & AI**, or choose **Unpair this machine** in the local wizard.
+Then run `docker compose down`. Add `--volumes` only when intentionally discarding the local installation
+credential and job receipts. Removing Bridge never removes family files from the mounted folder.
+
+## Security and openness
+
+The worker, setup wizard, Docker image, AI adapter, mounted-storage adapter, control-plane protocol, tests,
+and threat model are inspectable in this repository under the MIT License. Credentials are held in a
+protected local state volume and are never shown again after pairing. Jobs are typed, bounded, replay
+protected, and completed only through the outbound control plane.
+
+Please read [SECURITY.md](SECURITY.md) before exposing a new deployment and report vulnerabilities through
+the private process described there. Architecture and trust boundaries are documented in
+[THREAT_MODEL.md](THREAT_MODEL.md). Contributions are welcome through [CONTRIBUTING.md](CONTRIBUTING.md).
+
+No production credential, family fixture, tenant identifier, or private endpoint belongs in this
+repository.

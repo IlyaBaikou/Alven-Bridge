@@ -14,7 +14,10 @@ public sealed record PairInstallationResponse(
     string WorkspaceDisplayName,
     DateTimeOffset PairedAt);
 
-public sealed record IssueInstallationTokenRequest(Guid InstallationId, string InstallationSecret);
+public sealed record IssueInstallationTokenRequest(
+    Guid InstallationId,
+    Guid WorkspaceId,
+    string InstallationSecret);
 
 public sealed record IssueInstallationTokenResponse(string AccessToken, DateTimeOffset ExpiresAt);
 
@@ -43,4 +46,6 @@ public sealed record BridgeRuntimeStatus(
     bool ControlPlaneConfigured,
     IReadOnlyList<string> Capabilities,
     string Version,
-    string? LastSafeFailure);
+    string? LastSafeFailure,
+    string AiHealth,
+    string StorageHealth);

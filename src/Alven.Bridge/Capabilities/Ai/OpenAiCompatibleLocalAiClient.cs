@@ -1,33 +1,35 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Alven.Bridge.Configuration;
-using Microsoft.Extensions.Options;
 
 namespace Alven.Bridge.Capabilities.Ai;
 
 internal sealed class OpenAiCompatibleLocalAiClient(
     HttpClient httpClient,
-    IOptions<BridgeOptions> options) : ILocalAiClient
+    BridgeRuntimeConfiguration configuration) : ILocalAiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<LocalAiJobResult> CompleteAsync(LocalAiJobRequest request,
         CancellationToken cancellationToken)
     {
-        var ai = options.Value.Ai;
-        if (!ai.Enabled) throw new LocalAiException("ai-disabled");
-        if (ai.AllowedModels.Count == 0
-            || !ai.AllowedModels.Contains(request.Model, StringComparer.Ordinal))
+        var settings = configuration.Snapshot();
+        if (!settings.AiEnabled) throw new LocalAiException("ai-disabled");
+        if (settings.AiAllowedModels.Count == 0
+            || !settings.AiAllowedModels.Contains(request.Model, StringComparer.Ordinal))
             throw new LocalAiException("model-not-allowed");
-        if (request.MaximumOutputTokens is < 64 || request.MaximumOutputTokens > ai.MaximumOutputTokens)
+        if (request.MaximumOutputTokens is < 64 or > 4096)
             throw new LocalAiException("output-limit-invalid");
-        if (request.TimeoutSeconds is < 5 || request.TimeoutSeconds > ai.MaximumTimeoutSeconds)
+        if (request.TimeoutSeconds is < 5 or > 120)
             throw new LocalAiException("timeout-invalid");
         if (string.IsNullOrWhiteSpace(request.SystemInstruction)
             || string.IsNullOrWhiteSpace(request.Input))
             throw new LocalAiException("input-invalid");
+        if (request.SystemInstruction.Length > 32_000 || request.Input.Length > 200_000
+            || request.ResponseSchema.GetRawText().Length > 64_000)
+            throw new LocalAiException("input-limit-exceeded");
 
-        ConfigureBaseAddress(ai.BaseUrl);
+        var endpoint = Endpoint(settings.AiBaseUrl, "chat/completions");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(request.TimeoutSeconds));
         var body = new
@@ -51,7 +53,7 @@ internal sealed class OpenAiCompatibleLocalAiClient(
                 },
             },
         };
-        using var response = await httpClient.PostAsJsonAsync("chat/completions", body,
+        using var response = await httpClient.PostAsJsonAsync(endpoint, body,
             JsonOptions, timeout.Token);
         response.EnsureSuccessStatusCode();
         using var document = await JsonDocument.ParseAsync(
@@ -62,7 +64,7 @@ internal sealed class OpenAiCompatibleLocalAiClient(
         try
         {
             using var result = JsonDocument.Parse(content);
-            return new LocalAiJobResult(result.RootElement.GetRawText(), ai.Provider, request.Model);
+            return new LocalAiJobResult(result.RootElement.GetRawText(), settings.AiProvider, request.Model);
         }
         catch (JsonException exception)
         {
@@ -72,11 +74,12 @@ internal sealed class OpenAiCompatibleLocalAiClient(
 
     public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken)
     {
-        if (!options.Value.Ai.Enabled) return false;
+        var settings = configuration.Snapshot();
+        if (!settings.AiEnabled) return false;
         try
         {
-            ConfigureBaseAddress(options.Value.Ai.BaseUrl);
-            using var response = await httpClient.GetAsync("models", cancellationToken);
+            using var response = await httpClient.GetAsync(
+                Endpoint(settings.AiBaseUrl, "models"), cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch (Exception exception) when (exception is HttpRequestException
@@ -86,8 +89,8 @@ internal sealed class OpenAiCompatibleLocalAiClient(
         }
     }
 
-    private void ConfigureBaseAddress(string baseUrl) =>
-        httpClient.BaseAddress ??= new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute);
+    private static Uri Endpoint(string baseUrl, string path) =>
+        new(new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute), path);
 }
 
 public sealed class LocalAiException(string safeCode, Exception? inner = null)

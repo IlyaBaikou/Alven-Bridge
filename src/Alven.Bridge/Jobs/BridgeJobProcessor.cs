@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Alven.Bridge.Capabilities.Ai;
+using Alven.Bridge.Capabilities.Storage;
 using Alven.Bridge.ControlPlane;
 
 namespace Alven.Bridge.Jobs;
@@ -15,19 +16,41 @@ public interface IBridgeJobProcessor
         CancellationToken cancellationToken);
 }
 
-internal sealed class BridgeJobProcessor(ILocalAiClient aiClient) : IBridgeJobProcessor
+internal sealed class BridgeJobProcessor(ILocalAiClient aiClient,
+    ILocalStorageClient storageClient) : IBridgeJobProcessor
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<BridgeJobProcessingResult> ProcessAsync(BridgeJobEnvelope job,
         CancellationToken cancellationToken)
     {
         if (job.ExpiresAt <= DateTimeOffset.UtcNow)
             return new("rejected", null, "job-expired");
-        if (!job.Capability.StartsWith("ai.", StringComparison.Ordinal))
+        if (job.Capability.StartsWith("storage.", StringComparison.Ordinal))
+        {
+            try
+            {
+                var result = await storageClient.ProcessAsync(job.Capability, job.Payload,
+                    cancellationToken);
+                return new("completed", JsonSerializer.SerializeToElement(result, JsonOptions), null);
+            }
+            catch (LocalStorageException exception)
+            {
+                return new("failed", null, exception.SafeCode);
+            }
+            catch (Exception exception) when (exception is IOException
+                or UnauthorizedAccessException)
+            {
+                return new("failed", null, "local-storage-unavailable");
+            }
+        }
+        if (!string.Equals(job.Capability, "ai.openai-compatible",
+            StringComparison.Ordinal))
             return new("rejected", null, "capability-unsupported");
         LocalAiJobRequest? request;
         try
         {
-            request = job.Payload.Deserialize<LocalAiJobRequest>();
+            request = job.Payload.Deserialize<LocalAiJobRequest>(JsonOptions);
         }
         catch (JsonException)
         {
