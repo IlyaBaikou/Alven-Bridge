@@ -6,3 +6,28 @@ public sealed record PairBridgeResponse(
     Guid InstallationId,
     Guid WorkspaceId,
     string WorkspaceDisplayName);
+
+public sealed record ConfigureBridgeRequest(
+    string ControlPlaneBaseUrl,
+    int PollIntervalSeconds,
+    int HeartbeatIntervalSeconds,
+    bool AiEnabled,
+    string AiProvider,
+    string AiBaseUrl,
+    IReadOnlyList<string> AiAllowedModels,
+    bool StorageEnabled,
+    string StorageRootPath,
+    bool StorageReadOnly,
+    long StorageMaximumFileBytes);
+
+public sealed class SetupSession
+{
+    private readonly string nonce = Convert.ToHexString(
+        System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+
+    public string Nonce => nonce;
+    public bool IsValid(string? candidate) => !string.IsNullOrWhiteSpace(candidate)
+        && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(candidate),
+            System.Text.Encoding.UTF8.GetBytes(nonce));
+}

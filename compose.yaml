@@ -1,6 +1,7 @@
 services:
   bridge:
-    build: .
+    image: ghcr.io/ilyabaikou/alven-bridge:latest
+    init: true
     restart: unless-stopped
     ports:
       - "127.0.0.1:7433:7433"
@@ -10,8 +11,15 @@ services:
       Bridge__Ai__Provider: ${BRIDGE_AI_PROVIDER:-ollama}
       Bridge__Ai__BaseUrl: ${BRIDGE_AI_BASE_URL:-http://host.docker.internal:11434/v1/}
       Bridge__Ai__AllowedModels__0: ${BRIDGE_AI_ALLOWED_MODELS:-}
+      Bridge__Storage__Enabled: ${BRIDGE_STORAGE_ENABLED:-false}
+      Bridge__Storage__RootPath: /data/family-files
+      Bridge__Storage__ReadOnly: ${BRIDGE_STORAGE_READ_ONLY:-false}
+      Bridge__Storage__MaximumFileBytes: ${BRIDGE_STORAGE_MAXIMUM_FILE_BYTES:-100000000}
     volumes:
       - bridge-state:/var/lib/alven-bridge
+      - type: bind
+        source: ${BRIDGE_STORAGE_HOST_PATH:-./family-files}
+        target: /data/family-files
     extra_hosts:
       - "host.docker.internal:host-gateway"
     security_opt:
@@ -21,6 +29,12 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:7433/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    pids_limit: 256
 
 volumes:
   bridge-state:

@@ -9,6 +9,7 @@ public sealed class BridgeOptions
     public int PollIntervalSeconds { get; init; } = 10;
     public int HeartbeatIntervalSeconds { get; init; } = 30;
     public LocalAiOptions Ai { get; init; } = new();
+    public LocalStorageOptions Storage { get; init; } = new();
 }
 
 public sealed class LocalAiOptions
@@ -19,6 +20,14 @@ public sealed class LocalAiOptions
     public IReadOnlyList<string> AllowedModels { get; init; } = [];
     public int MaximumTimeoutSeconds { get; init; } = 120;
     public int MaximumOutputTokens { get; init; } = 4096;
+}
+
+public sealed class LocalStorageOptions
+{
+    public bool Enabled { get; init; }
+    public string RootPath { get; init; } = "/data/family-files";
+    public bool ReadOnly { get; init; }
+    public long MaximumFileBytes { get; init; } = 100_000_000;
 }
 
 public static class BridgeOptionsRules
@@ -51,6 +60,15 @@ public static class BridgeOptionsRules
                 errors.Add("Bridge:Ai:MaximumTimeoutSeconds must be between 5 and 600.");
             if (options.Ai.MaximumOutputTokens is < 64 or > 32768)
                 errors.Add("Bridge:Ai:MaximumOutputTokens must be between 64 and 32768.");
+        }
+
+        if (options.Storage.Enabled)
+        {
+            if (string.IsNullOrWhiteSpace(options.Storage.RootPath)
+                || !Path.IsPathFullyQualified(options.Storage.RootPath))
+                errors.Add("Bridge:Storage:RootPath must be an absolute mounted path.");
+            if (options.Storage.MaximumFileBytes is < 1_000_000 or > 5_000_000_000)
+                errors.Add("Bridge:Storage:MaximumFileBytes must be between 1 MB and 5 GB.");
         }
 
         return errors;

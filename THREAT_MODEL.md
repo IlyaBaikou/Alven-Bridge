@@ -24,6 +24,17 @@ models, mounted storage, and model output are untrusted dependencies.
 - minimum job context and no unrestricted Workspace export;
 - typed result validation in the Alven control plane;
 - mounted-root allowlist and traversal/symlink escape rejection for storage;
+- persistent mount identity validation so a missing or replaced disk fails closed;
+- reserved Bridge metadata paths that control-plane jobs cannot read, overwrite, or delete;
+- same-origin setup nonce for every local wizard mutation and loopback-only Docker port binding;
+- crash-safe local job receipts so a failed completion request cannot repeat a write or model call;
+- job-expiry cancellation propagated into local AI and storage work;
+- local unpair revokes the server installation before erasing its credential; an unavailable control
+  plane leaves the credential in place unless the operator explicitly confirms a local-only reset, which
+  is shown with a required follow-up server-revocation warning;
+- loopback Host and Origin checks on the wizard, configuration, diagnostics, pairing, and status surface;
+- installation/job replay detection binds an idempotency receipt to capability and payload fingerprint;
+- diagnostic output is content-redacted and excludes paths, models, endpoints, tokens, and job payloads;
 - signed releases, checksums, SBOM, compatibility checks, and manual rollback;
 - no automatic paid-cloud fallback and no managed Smart Action charge for local AI.
 
