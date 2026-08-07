@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Alven.Bridge.Configuration;
 
 namespace Alven.Bridge.Capabilities.Ai;
@@ -86,9 +87,10 @@ internal sealed class OpenAiCompatibleLocalAiClient(
     private async Task<string?> CompleteWithOllamaAsync(BridgeEditableSettings settings,
         LocalAiJobRequest request, CancellationToken cancellationToken)
     {
-        // Ollama's OpenAI compatibility layer converts a JSON schema to a grammar. Large Alven
-        // schemas can exceed its repetition limits, so use the native JSON mode and keep schema
-        // enforcement in Alven's control plane.
+        // Ollama's OpenAI compatibility layer converts a JSON schema to a grammar. Large bounded
+        // strings and regexes can exceed its repetition limits. Its native endpoint can still
+        // enforce the important object shape after those costly bounds are removed; the control
+        // plane validates the complete schema before accepting the result.
         var schemaInstruction = $"""
             {request.SystemInstruction}
 
@@ -104,7 +106,7 @@ internal sealed class OpenAiCompatibleLocalAiClient(
                 new { role = "user", content = request.Input },
             },
             stream = false,
-            format = "json",
+            format = OllamaGrammarSchema(request.ResponseSchema),
             options = new
             {
                 temperature = 0,
@@ -158,6 +160,37 @@ internal sealed class OpenAiCompatibleLocalAiClient(
 
     private static bool IsOllama(string provider) =>
         string.Equals(provider, "ollama", StringComparison.OrdinalIgnoreCase);
+
+    private static JsonElement OllamaGrammarSchema(JsonElement schema)
+    {
+        var root = JsonNode.Parse(schema.GetRawText())
+            ?? throw new LocalAiException("response-schema-invalid");
+        RemoveExpensiveGrammarBounds(root);
+        return JsonSerializer.SerializeToElement(root, JsonOptions);
+    }
+
+    private static void RemoveExpensiveGrammarBounds(JsonNode node)
+    {
+        if (node is JsonObject value)
+        {
+            foreach (var key in ExpensiveGrammarKeywords) value.Remove(key);
+            foreach (var child in value.Select(item => item.Value).Where(item => item is not null))
+                RemoveExpensiveGrammarBounds(child!);
+        }
+        else if (node is JsonArray array)
+        {
+            foreach (var child in array.Where(item => item is not null))
+                RemoveExpensiveGrammarBounds(child!);
+        }
+    }
+
+    private static readonly string[] ExpensiveGrammarKeywords =
+    [
+        "minLength", "maxLength", "pattern", "format",
+        "uniqueItems", "contains", "minContains", "maxContains",
+        "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+        "minProperties", "maxProperties",
+    ];
 }
 
 public sealed class LocalAiException(string safeCode, Exception? inner = null)

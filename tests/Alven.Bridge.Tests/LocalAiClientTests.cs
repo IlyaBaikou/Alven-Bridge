@@ -20,7 +20,7 @@ public sealed class LocalAiClientTests : IDisposable
         using var configuration = Configuration("ollama", "http://localhost:11434/v1/");
         var client = new OpenAiCompatibleLocalAiClient(new HttpClient(handler), configuration);
         using var schema = JsonDocument.Parse("""
-            {"type":"object","properties":{"answer":{"type":"string","maxLength":2000}},"required":["answer"]}
+            {"type":"object","properties":{"answer":{"type":"string","maxLength":2000},"sourceKeys":{"type":"array","maxItems":8,"items":{"type":"string"}}},"required":["answer"]}
             """);
 
         var result = await client.CompleteAsync(Request(schema.RootElement.Clone()),
@@ -30,7 +30,13 @@ public sealed class LocalAiClientTests : IDisposable
         var sent = Assert.Single(handler.Requests);
         Assert.Equal("/api/chat", sent.Uri.AbsolutePath);
         using var body = JsonDocument.Parse(sent.Body);
-        Assert.Equal("json", body.RootElement.GetProperty("format").GetString());
+        var format = body.RootElement.GetProperty("format");
+        Assert.Equal(JsonValueKind.Object, format.ValueKind);
+        Assert.Equal("object", format.GetProperty("type").GetString());
+        Assert.False(format.GetProperty("properties").GetProperty("answer")
+            .TryGetProperty("maxLength", out _));
+        Assert.Equal(8, format.GetProperty("properties").GetProperty("sourceKeys")
+            .GetProperty("maxItems").GetInt32());
         Assert.False(body.RootElement.TryGetProperty("response_format", out _));
         Assert.Contains("maxLength", body.RootElement.GetProperty("messages")[0]
             .GetProperty("content").GetString(), StringComparison.Ordinal);
