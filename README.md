@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/alven-bridge-mark.svg" width="112" alt="Alven Bridge">
+  <img src="src/Alven.Bridge/wwwroot/assets/alven-logo.png" width="112" alt="Alven Bridge">
 </p>
 
 <h1 align="center">Alven Bridge</h1>
