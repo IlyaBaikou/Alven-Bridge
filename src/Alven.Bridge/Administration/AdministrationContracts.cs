@@ -19,7 +19,16 @@ public sealed record ConfigureBridgeRequest(
     string StorageRootPath,
     bool StorageReadOnly,
     long StorageMaximumFileBytes,
-    int ReceiptRetentionDays);
+    int ReceiptRetentionDays,
+    string StorageProvider = "mounted",
+    string? StorageEndpoint = null,
+    string? StorageBucket = null,
+    string? StoragePrefix = null,
+    string? StorageUsername = null,
+    string? StoragePassword = null,
+    string? StorageAccessKey = null,
+    string? StorageSecretKey = null,
+    string? StorageRegion = null);
 
 public sealed class SetupSession
 {

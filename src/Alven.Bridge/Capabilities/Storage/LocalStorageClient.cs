@@ -26,7 +26,7 @@ public interface ILocalStorageClient
 }
 
 internal sealed class LocalStorageClient(BridgeRuntimeConfiguration configuration,
-    IOptions<BridgeOptions> options)
+    IOptions<BridgeOptions> options, RemoteStorageClient remoteStorage)
     : ILocalStorageClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -38,7 +38,6 @@ internal sealed class LocalStorageClient(BridgeRuntimeConfiguration configuratio
     {
         var settings = configuration.Snapshot();
         if (!settings.StorageEnabled) throw new LocalStorageException("storage-disabled");
-        EnsureMountIdentity(settings);
         LocalStorageJobRequest request;
         try
         {
@@ -49,6 +48,10 @@ internal sealed class LocalStorageClient(BridgeRuntimeConfiguration configuratio
         {
             throw new LocalStorageException("storage-payload-invalid", exception);
         }
+        if (settings.StorageProvider != "mounted")
+            return await remoteStorage.ProcessAsync(capability, request, settings,
+                cancellationToken);
+        EnsureMountIdentity(settings);
         var root = Path.GetFullPath(settings.StorageRootPath);
         var path = Resolve(root, request.RelativePath);
         return capability switch
@@ -82,6 +85,8 @@ internal sealed class LocalStorageClient(BridgeRuntimeConfiguration configuratio
         cancellationToken.ThrowIfCancellationRequested();
         var settings = configuration.Snapshot();
         if (!settings.StorageEnabled) return Task.FromResult(false);
+        if (settings.StorageProvider != "mounted")
+            return remoteStorage.IsHealthyAsync(settings, cancellationToken);
         try
         {
             EnsureMountIdentity(settings);

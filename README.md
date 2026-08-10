@@ -43,7 +43,7 @@ in the hosted Alven service.
 - about 100 MB for Bridge itself, plus a small persistent state volume;
 - outbound HTTPS access to the Alven API;
 - optional: Ollama/LM Studio and enough memory for the selected model;
-- optional: an already mounted local or NAS folder for family files.
+- optional: an already mounted local/NAS folder, WebDAV account, or S3-compatible bucket for family files.
 
 The current preview relay supports files up to **5 MB each**. The wizard and worker reject a larger
 configured limit because the v1 control-plane protocol is bounded and non-streaming. Larger-file
@@ -67,7 +67,7 @@ Bridge does not need a public IP, an inbound firewall rule, Kubernetes, or a sep
    docker compose up -d
    ```
 
-3. Open [http://127.0.0.1:7433](http://127.0.0.1:7433). Choose private AI, mounted storage, or both.
+3. Open [http://127.0.0.1:7433](http://127.0.0.1:7433). Choose private AI, family storage, or both.
 
 4. In Alven, open **More → Storage & AI → Alven Bridge** and create a one-time pairing code. Paste it
    into the local wizard. The code expires after ten minutes and works once.
@@ -91,6 +91,21 @@ directory traversal, and symbolic-link escapes are rejected.
 Set `BRIDGE_STORAGE_READ_ONLY=true` if Alven should read an existing archive without writing to it.
 Writable roots receive a hidden `.alven-bridge-mount-id` marker. It prevents Bridge from silently writing
 to the wrong disk when a mount disappears or is replaced; do not copy or remove that marker.
+
+## Connect WebDAV or S3-compatible storage
+
+Choose `webdav` in the wizard for Nextcloud, Synology WebDAV Server, or another standards-compatible
+server. Enter the exact HTTPS endpoint for the family-owned folder and a dedicated least-privilege
+account. Bridge creates only the folders needed beneath the configured prefix.
+
+Choose `s3` for MinIO, Synology-compatible object storage, AWS S3, or another SigV4-compatible service.
+Enter the endpoint, bucket, region, prefix, and a key restricted to that bucket and prefix. Bridge uses
+path-style requests so self-hosted endpoints work without wildcard DNS.
+
+Passwords and S3 keys are written only to the owner-readable Bridge state file. The setup API returns
+empty secret fields after saving, logs and diagnostics redact endpoints and credentials, and leaving a
+secret field empty in the wizard keeps the saved value. Back up the state volume as a credential vault.
+Prefer HTTPS; plain HTTP is suitable only on a network you already trust or through a private tunnel.
 
 ## Run it on a remote server
 
