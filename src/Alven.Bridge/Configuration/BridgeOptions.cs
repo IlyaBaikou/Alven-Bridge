@@ -27,7 +27,16 @@ public sealed class LocalAiOptions
 public sealed class LocalStorageOptions
 {
     public bool Enabled { get; init; }
+    public string Provider { get; init; } = "mounted";
     public string RootPath { get; init; } = "/data/family-files";
+    public string Endpoint { get; init; } = string.Empty;
+    public string Bucket { get; init; } = string.Empty;
+    public string Prefix { get; init; } = "alven";
+    public string Username { get; init; } = string.Empty;
+    public string Password { get; init; } = string.Empty;
+    public string AccessKey { get; init; } = string.Empty;
+    public string SecretKey { get; init; } = string.Empty;
+    public string Region { get; init; } = "us-east-1";
     public bool ReadOnly { get; init; }
     public long MaximumFileBytes { get; init; } = BridgeOptions.MaximumRelayFileBytes;
 }
@@ -68,9 +77,28 @@ public static class BridgeOptionsRules
 
         if (options.Storage.Enabled)
         {
-            if (string.IsNullOrWhiteSpace(options.Storage.RootPath)
-                || !Path.IsPathFullyQualified(options.Storage.RootPath))
+            if (options.Storage.Provider == "mounted"
+                && (string.IsNullOrWhiteSpace(options.Storage.RootPath)
+                    || !Path.IsPathFullyQualified(options.Storage.RootPath)))
                 errors.Add("Bridge:Storage:RootPath must be an absolute mounted path.");
+            if (options.Storage.Provider is "webdav" or "s3")
+            {
+                if (!Uri.TryCreate(options.Storage.Endpoint, UriKind.Absolute, out var endpoint)
+                    || endpoint.Scheme != Uri.UriSchemeHttp
+                        && endpoint.Scheme != Uri.UriSchemeHttps)
+                    errors.Add("Bridge:Storage:Endpoint must be an absolute HTTP or HTTPS URL.");
+            }
+            if (options.Storage.Provider == "webdav"
+                && (string.IsNullOrWhiteSpace(options.Storage.Username)
+                    || string.IsNullOrWhiteSpace(options.Storage.Password)))
+                errors.Add("WebDAV username and password are required.");
+            if (options.Storage.Provider == "s3"
+                && (string.IsNullOrWhiteSpace(options.Storage.Bucket)
+                    || string.IsNullOrWhiteSpace(options.Storage.AccessKey)
+                    || string.IsNullOrWhiteSpace(options.Storage.SecretKey)))
+                errors.Add("S3 bucket, access key, and secret key are required.");
+            if (options.Storage.Provider is not ("mounted" or "webdav" or "s3"))
+                errors.Add("Bridge:Storage:Provider must be mounted, webdav, or s3.");
             if (options.Storage.MaximumFileBytes is < 1_000_000
                 or > BridgeOptions.MaximumRelayFileBytes)
             {

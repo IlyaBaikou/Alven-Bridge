@@ -19,6 +19,7 @@ builder.Services.AddSingleton<BridgeRuntimeState>();
 builder.Services.AddSingleton<BridgeDiagnosticsService>();
 builder.Services.AddHttpClient<IBridgeControlPlaneClient, BridgeControlPlaneClient>();
 builder.Services.AddHttpClient<ILocalAiClient, OpenAiCompatibleLocalAiClient>();
+builder.Services.AddHttpClient<RemoteStorageClient>();
 builder.Services.AddSingleton<ILocalStorageClient, LocalStorageClient>();
 builder.Services.AddSingleton<IBridgeJobProcessor, BridgeJobProcessor>();
 builder.Services.AddHostedService<BridgeWorker>();
@@ -64,7 +65,7 @@ app.MapGet("/api/v1/setup/session", (SetupSession session,
     BridgeRuntimeConfiguration configuration) => Results.Ok(new
     {
         nonce = session.Nonce,
-        configuration = configuration.Snapshot(),
+        configuration = configuration.PublicSnapshot(),
     }));
 app.MapGet("/api/v1/diagnostics", async (BridgeDiagnosticsService diagnostics,
     CancellationToken cancellationToken) =>
@@ -85,7 +86,8 @@ app.MapPut("/api/v1/setup/configuration", async (ConfigureBridgeRequest request,
         if (paired is not null && !string.Equals(current, requested,
                 StringComparison.OrdinalIgnoreCase))
             return Results.Conflict(new { code = "unpair-before-changing-control-plane" });
-        return Results.Ok(await configuration.UpdateAsync(request, cancellationToken));
+        await configuration.UpdateAsync(request, cancellationToken);
+        return Results.Ok(configuration.PublicSnapshot());
     }
     catch (BridgeConfigurationException exception)
     {

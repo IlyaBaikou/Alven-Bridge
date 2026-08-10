@@ -4,7 +4,7 @@
 
 - the installation credential and short-lived access token;
 - minimal job payloads and returned proposals;
-- mounted local or NAS content when storage is enabled;
+- mounted local/NAS content and scoped WebDAV or S3 credentials when storage is enabled;
 - Workspace and installation identifiers;
 - the integrity of capability, health, completion, and update reports.
 
@@ -12,7 +12,7 @@
 
 The Alven control plane is responsible for current User, Owner, Membership, and Workspace authorization.
 Bridge is user-operated and may be stale, misconfigured, offline, or compromised. Ollama, LM Studio,
-models, mounted storage, and model output are untrusted dependencies.
+models, mounted storage, WebDAV/S3 services, and model output are untrusted dependencies.
 
 ## Required controls
 
@@ -24,6 +24,8 @@ models, mounted storage, and model output are untrusted dependencies.
 - minimum job context and no unrestricted Workspace export;
 - typed result validation in the Alven control plane;
 - mounted-root allowlist and traversal/symlink escape rejection for storage;
+- normalized relative object keys, configured-prefix confinement, bounded payloads, authenticated
+  requests, and no credential-bearing URLs for WebDAV/S3 storage;
 - persistent mount identity validation so a missing or replaced disk fails closed;
 - reserved Bridge metadata paths that control-plane jobs cannot read, overwrite, or delete;
 - same-origin setup nonce for every local wizard mutation and loopback-only Docker port binding;
@@ -35,6 +37,8 @@ models, mounted storage, and model output are untrusted dependencies.
 - loopback Host and Origin checks on the wizard, configuration, diagnostics, pairing, and status surface;
 - installation/job replay detection binds an idempotency receipt to capability and payload fingerprint;
 - diagnostic output is content-redacted and excludes paths, models, endpoints, tokens, and job payloads;
+- saved remote-storage secrets are owner-readable, never returned by the setup API after saving, and
+  never emitted by health or diagnostics;
 - signed releases, checksums, SBOM, compatibility checks, and manual rollback;
 - no automatic paid-cloud fallback and no managed Smart Action charge for local AI.
 

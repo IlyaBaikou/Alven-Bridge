@@ -12,7 +12,8 @@ service to the public internet as part of an operations workaround.
 
 ## Backup
 
-Back up the family storage mount with the storage platform's snapshot or backup facility. Separately
+Back up the family storage mount, WebDAV service, or S3 bucket with the storage platform's snapshot or
+versioning facility. Separately
 back up the small Docker state volume while Bridge is stopped:
 
 ```bash
@@ -39,8 +40,10 @@ installation. Do not restore an old credential over a newer active installation.
 - `control-plane-unavailable`: verify outbound HTTPS, system time, DNS, and the configured Alven URL.
 - AI unavailable: verify the local endpoint from the Docker host and confirm the exact model is in the
   allowlist. Bridge never falls back to paid managed AI.
-- Storage unavailable: verify the host mount and identity marker before restarting. Never recreate the
-  marker manually to force a mount healthy.
+- Storage unavailable: for mounted storage, verify the host mount and identity marker before restarting.
+  Never recreate the marker manually to force a mount healthy. For WebDAV or S3, verify TLS, system time,
+  the dedicated credential, bucket/folder permission, endpoint health, and capacity without copying a
+  production secret into diagnostics.
 - Pending receipt count grows: keep the state volume, restore control-plane access, and allow Bridge to
   replay completion safely. Receipts older than the configured retention period are removed because the
   corresponding bounded lease is no longer executable.

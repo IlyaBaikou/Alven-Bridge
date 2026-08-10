@@ -13,7 +13,16 @@ public sealed record BridgeEditableSettings(
     string AiBaseUrl,
     IReadOnlyList<string> AiAllowedModels,
     bool StorageEnabled,
+    string StorageProvider,
     string StorageRootPath,
+    string StorageEndpoint,
+    string StorageBucket,
+    string StoragePrefix,
+    string StorageUsername,
+    string StoragePassword,
+    string StorageAccessKey,
+    string StorageSecretKey,
+    string StorageRegion,
     bool StorageReadOnly,
     long StorageMaximumFileBytes,
     int ReceiptRetentionDays);
@@ -39,6 +48,12 @@ public sealed class BridgeRuntimeConfiguration : IDisposable
     }
 
     public BridgeEditableSettings Snapshot() => Volatile.Read(ref current);
+    public BridgeEditableSettings PublicSnapshot() => Snapshot() with
+    {
+        StoragePassword = string.Empty,
+        StorageAccessKey = string.Empty,
+        StorageSecretKey = string.Empty,
+    };
 
     public async Task<BridgeEditableSettings> UpdateAsync(ConfigureBridgeRequest request,
         CancellationToken cancellationToken)
@@ -53,7 +68,18 @@ public sealed class BridgeRuntimeConfiguration : IDisposable
             request.AiAllowedModels.Select(item => item.Trim())
                 .Where(item => item.Length > 0).Distinct(StringComparer.Ordinal).ToArray(),
             request.StorageEnabled,
+            (request.StorageProvider ?? "mounted").Trim().ToLowerInvariant(),
             request.StorageRootPath.Trim(),
+            request.StorageEndpoint?.Trim() ?? string.Empty,
+            request.StorageBucket?.Trim() ?? string.Empty,
+            request.StoragePrefix?.Trim().Trim('/') ?? string.Empty,
+            string.IsNullOrWhiteSpace(request.StorageUsername)
+                ? current.StorageUsername : request.StorageUsername.Trim(),
+            string.IsNullOrEmpty(request.StoragePassword) ? current.StoragePassword : request.StoragePassword,
+            string.IsNullOrWhiteSpace(request.StorageAccessKey)
+                ? current.StorageAccessKey : request.StorageAccessKey.Trim(),
+            string.IsNullOrEmpty(request.StorageSecretKey) ? current.StorageSecretKey : request.StorageSecretKey,
+            string.IsNullOrWhiteSpace(request.StorageRegion) ? "us-east-1" : request.StorageRegion.Trim(),
             request.StorageReadOnly,
             request.StorageMaximumFileBytes,
             request.ReceiptRetentionDays);
@@ -95,7 +121,10 @@ public sealed class BridgeRuntimeConfiguration : IDisposable
         options.ControlPlaneBaseUrl, options.PollIntervalSeconds,
         options.HeartbeatIntervalSeconds, options.Ai.Enabled, options.Ai.Provider,
         options.Ai.BaseUrl, options.Ai.AllowedModels, options.Storage.Enabled,
-        options.Storage.RootPath, options.Storage.ReadOnly,
+        options.Storage.Provider, options.Storage.RootPath, options.Storage.Endpoint,
+        options.Storage.Bucket, options.Storage.Prefix, options.Storage.Username,
+        options.Storage.Password, options.Storage.AccessKey, options.Storage.SecretKey,
+        options.Storage.Region, options.Storage.ReadOnly,
         options.Storage.MaximumFileBytes, options.ReceiptRetentionDays);
 
     private static BridgeEditableSettings? Load(string path)
@@ -103,9 +132,21 @@ public sealed class BridgeRuntimeConfiguration : IDisposable
         if (!File.Exists(path)) return null;
         using var input = File.OpenRead(path);
         var loaded = JsonSerializer.Deserialize<BridgeEditableSettings>(input, JsonOptions);
-        return loaded is { ReceiptRetentionDays: 0 }
-            ? loaded with { ReceiptRetentionDays = 30 }
-            : loaded;
+        return loaded is null ? null : loaded with
+        {
+            ReceiptRetentionDays = loaded.ReceiptRetentionDays == 0 ? 30 : loaded.ReceiptRetentionDays,
+            StorageProvider = string.IsNullOrWhiteSpace(loaded.StorageProvider)
+                ? "mounted" : loaded.StorageProvider,
+            StorageEndpoint = loaded.StorageEndpoint ?? string.Empty,
+            StorageBucket = loaded.StorageBucket ?? string.Empty,
+            StoragePrefix = loaded.StoragePrefix ?? string.Empty,
+            StorageUsername = loaded.StorageUsername ?? string.Empty,
+            StoragePassword = loaded.StoragePassword ?? string.Empty,
+            StorageAccessKey = loaded.StorageAccessKey ?? string.Empty,
+            StorageSecretKey = loaded.StorageSecretKey ?? string.Empty,
+            StorageRegion = string.IsNullOrWhiteSpace(loaded.StorageRegion)
+                ? "us-east-1" : loaded.StorageRegion,
+        };
     }
 
     private static IReadOnlyList<string> Validate(BridgeEditableSettings settings)
@@ -127,7 +168,16 @@ public sealed class BridgeRuntimeConfiguration : IDisposable
             Storage = new LocalStorageOptions
             {
                 Enabled = settings.StorageEnabled,
+                Provider = settings.StorageProvider,
                 RootPath = settings.StorageRootPath,
+                Endpoint = settings.StorageEndpoint,
+                Bucket = settings.StorageBucket,
+                Prefix = settings.StoragePrefix,
+                Username = settings.StorageUsername,
+                Password = settings.StoragePassword,
+                AccessKey = settings.StorageAccessKey,
+                SecretKey = settings.StorageSecretKey,
+                Region = settings.StorageRegion,
                 ReadOnly = settings.StorageReadOnly,
                 MaximumFileBytes = settings.StorageMaximumFileBytes,
             },
