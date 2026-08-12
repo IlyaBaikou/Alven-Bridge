@@ -16,7 +16,7 @@ public sealed class BridgeOptions
 
 public sealed class LocalAiOptions
 {
-    public bool Enabled { get; init; } = true;
+    public bool Enabled { get; init; }
     public string Provider { get; init; } = "ollama";
     public string BaseUrl { get; init; } = "http://127.0.0.1:11434/v1/";
     public IReadOnlyList<string> AllowedModels { get; init; } = [];

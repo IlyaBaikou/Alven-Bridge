@@ -6,3 +6,5 @@
 .DS_Store
 .bridge-state/
 TestResults/
+family-files/
+backups/

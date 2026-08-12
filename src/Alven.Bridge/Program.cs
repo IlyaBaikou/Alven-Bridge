@@ -67,6 +67,52 @@ app.MapGet("/api/v1/setup/session", (SetupSession session,
         nonce = session.Nonce,
         configuration = configuration.PublicSnapshot(),
     }));
+app.MapPost("/api/v1/setup/verify", async (HttpContext httpContext,
+    SetupSession setupSession,
+    BridgeRuntimeState state,
+    CancellationToken cancellationToken) =>
+{
+    if (!setupSession.IsValid(httpContext.Request.Headers["X-Alven-Setup-Nonce"]))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+    var status = await state.SnapshotAsync(cancellationToken);
+    var checks = new List<BridgeSetupCheck>
+    {
+        status.ControlPlaneConfigured
+            ? new("control-plane", "healthy", "Alven service address is configured.")
+            : new("control-plane", "required", "Alven service address is missing.",
+                "Use the address supplied by Alven."),
+        status.Paired
+            ? new("pairing", "healthy", "This Bridge is paired with a family.")
+            : new("pairing", "required", "This Bridge is not paired yet.",
+                "Create a one-time code in Alven and enter it in the next step."),
+    };
+    checks.Add(status.AiHealth switch
+    {
+        "healthy" => new("ai", "healthy", "Private AI answered its health check."),
+        "disabled" => new("ai", "disabled", "Private AI is not enabled."),
+        _ => new("ai", "unavailable", "Private AI could not be reached.",
+            "Start the model server and confirm its endpoint and allowed model."),
+    });
+    checks.Add(status.StorageHealth switch
+    {
+        "healthy" => new("storage", "healthy", "Family storage answered its health check."),
+        "disabled" => new("storage", "disabled", "Family storage is not enabled."),
+        _ => new("storage", "unavailable", "Family storage could not be reached.",
+            "Check the mount, endpoint, credentials, and write permission."),
+    });
+    checks.Add(status.LastControlPlaneContactAt is not null
+        ? new("worker", "healthy", "The worker has contacted Alven.")
+        : new("worker", status.Paired ? "checking" : "waiting",
+            status.Paired ? "Waiting for the first worker heartbeat."
+                : "The worker starts after pairing.",
+            status.Paired ? "Keep this page open for a few seconds and check again." : null));
+    var ready = status.Paired && status.ControlPlaneConfigured
+        && status.LastControlPlaneContactAt is not null
+        && status.AiHealth is "healthy" or "disabled"
+        && status.StorageHealth is "healthy" or "disabled"
+        && status.Capabilities.Count > 0;
+    return Results.Ok(new BridgeSetupAssessment(ready, checks));
+});
 app.MapGet("/api/v1/diagnostics", async (BridgeDiagnosticsService diagnostics,
     CancellationToken cancellationToken) =>
     Results.Ok(await diagnostics.CreateAsync(cancellationToken)));

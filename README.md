@@ -54,29 +54,50 @@ Bridge does not need a public IP, an inbound firewall rule, Kubernetes, or a sep
 
 ## Five-minute setup
 
-1. Download this repository and create your local environment file:
+### macOS or Linux
 
-   ```bash
-   cp .env.example .env
-   mkdir -p family-files
-   ```
+Choose an empty folder where you want to keep the small Bridge configuration and run:
 
-2. Start the published container:
+```bash
+curl -fsSL https://raw.githubusercontent.com/IlyaBaikou/Alven-Bridge/main/scripts/install.sh | sh
+```
 
-   ```bash
-   docker compose up -d
-   ```
+### Windows PowerShell
 
-3. Open [http://127.0.0.1:7433](http://127.0.0.1:7433). Choose private AI, family storage, or both.
+Open PowerShell in an empty folder and run:
 
-4. In Alven, open **More → Storage & AI → Alven Bridge** and create a one-time pairing code. Paste it
-   into the local wizard. The code expires after ten minutes and works once.
+```powershell
+irm https://raw.githubusercontent.com/IlyaBaikou/Alven-Bridge/main/scripts/install.ps1 | iex
+```
 
-5. Confirm that the three status cards show the capabilities you intended to enable. You can close the
-   wizard; Bridge keeps working in the background.
+Both installers check Docker, download the public Compose definition, preserve an existing `.env`,
+start the container, wait for its local health endpoint, and open the setup page. By default the files
+are placed in an `alven-bridge` folder beneath the current directory. Set
+`ALVEN_BRIDGE_INSTALL_DIR` first if you prefer another location.
+
+If you prefer to inspect every command before it runs, download this repository and start manually:
+
+```bash
+cp .env.example .env
+mkdir -p family-files
+docker compose up -d
+```
+
+Then complete the four short steps at [http://127.0.0.1:7433](http://127.0.0.1:7433):
+
+1. choose private AI, family storage, or both;
+2. enter only the settings needed by those choices and run the built-in health checks;
+3. create a one-time code in **Alven → More → Storage & AI → Alven Bridge** and pair;
+4. wait for the ready screen to confirm Alven contact and every enabled capability.
+
+The code expires after ten minutes and works once. A failed or cancelled pairing never selects Bridge as
+the family's storage provider. You can download a content-redacted diagnostic JSON from the final step;
+it contains no prompts, model names, endpoints, paths, file names, credentials, or tokens.
 
 The published image is `ghcr.io/ilyabaikou/alven-bridge:latest` for `linux/amd64` and `linux/arm64`.
-Releases include provenance and an SBOM. To build the exact checked-out source locally:
+Tagged releases include provenance, an SBOM, an operator archive, and its SHA-256 checksum. For a durable
+home-server installation, pin `ALVEN_BRIDGE_IMAGE` in `.env` to a semantic release tag after setup. To
+build the exact checked-out source locally:
 
 ```bash
 docker compose -f compose.yaml -f compose.dev.yaml up -d --build
@@ -119,6 +140,21 @@ Then open [http://127.0.0.1:7433](http://127.0.0.1:7433) on your own computer. D
 through a router or public reverse proxy.
 
 ## Everyday operations
+
+The installer adds an `alven-bridge` helper beside `compose.yaml` on macOS/Linux and
+`alven-bridge.ps1` on Windows. It keeps routine commands discoverable:
+
+```bash
+./alven-bridge open
+./alven-bridge doctor
+./alven-bridge update
+./alven-bridge backup
+./alven-bridge uninstall
+```
+
+Uninstall keeps Bridge state and family files by default. The explicit `--purge-local-state` option
+requires typing `PURGE`, removes only the Docker credential/receipt volume, and never deletes the mounted
+family folder. Revoke the installation in Alven before purging it.
 
 The local page and `GET /api/v1/diagnostics` report capability health without returning prompts,
 responses, model names, endpoints, file names, paths, or credentials.

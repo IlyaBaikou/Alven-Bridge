@@ -34,7 +34,7 @@ public sealed class BridgeBoundaryTests : IAsyncLifetime
         Assert.NotNull(status);
         Assert.False(status.Paired);
         Assert.Null(status.InstallationId);
-        Assert.Contains("ai.openai-compatible", status.Capabilities);
+        Assert.Empty(status.Capabilities);
         using var readiness = await client.GetAsync("/health/ready");
         Assert.Equal(HttpStatusCode.ServiceUnavailable, readiness.StatusCode);
     }
@@ -374,6 +374,26 @@ public sealed class BridgeBoundaryTests : IAsyncLifetime
 
         Assert.Contains("Your home stays yours", html, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetupVerificationIsNonceProtectedAndActionable()
+    {
+        await using var factory = Factory();
+        using var client = factory.CreateClient();
+        var session = await client.GetFromJsonAsync<JsonElement>("/api/v1/setup/session");
+        using var denied = await client.PostAsync("/api/v1/setup/verify", null);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/setup/verify");
+        request.Headers.Add("X-Alven-Setup-Nonce", session.GetProperty("nonce").GetString());
+        using var allowed = await client.SendAsync(request);
+        var assessment = await allowed.Content.ReadFromJsonAsync<BridgeSetupAssessment>();
+
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        Assert.NotNull(assessment);
+        Assert.False(assessment.Ready);
+        Assert.Contains(assessment.Checks, check => check.Id == "pairing"
+            && check.State == "required" && check.Action is not null);
     }
 
     public Task InitializeAsync() => Task.CompletedTask;

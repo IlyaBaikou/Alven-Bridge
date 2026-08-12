@@ -5,3 +5,5 @@
 .env
 .bridge-state
 TestResults
+family-files
+backups

@@ -7,6 +7,16 @@ public sealed record PairBridgeResponse(
     Guid WorkspaceId,
     string WorkspaceDisplayName);
 
+public sealed record BridgeSetupCheck(
+    string Id,
+    string State,
+    string Summary,
+    string? Action = null);
+
+public sealed record BridgeSetupAssessment(
+    bool Ready,
+    IReadOnlyList<BridgeSetupCheck> Checks);
+
 public sealed record ConfigureBridgeRequest(
     string ControlPlaneBaseUrl,
     int PollIntervalSeconds,

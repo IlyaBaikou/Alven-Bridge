@@ -19,4 +19,6 @@ jobs:
       - run: dotnet restore Alven.Bridge.slnx
       - run: dotnet format Alven.Bridge.slnx --verify-no-changes --no-restore
       - run: dotnet test Alven.Bridge.slnx --no-restore
+      - run: sh -n scripts/install.sh scripts/alven-bridge.sh
+      - run: docker compose --env-file .env.example config --quiet
       - run: docker build .

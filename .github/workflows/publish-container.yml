@@ -5,7 +5,7 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
   attestations: write
@@ -46,3 +46,18 @@ jobs:
           subject-name: ghcr.io/ilyabaikou/alven-bridge
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+      - name: Package operator files
+        run: |
+          mkdir -p dist/alven-bridge
+          cp compose.yaml .env.example dist/alven-bridge/
+          cp scripts/install.sh scripts/install.ps1 scripts/alven-bridge.sh scripts/alven-bridge.ps1 dist/alven-bridge/
+          tar -czf "dist/alven-bridge-${GITHUB_REF_NAME}.tar.gz" -C dist alven-bridge
+          (cd dist && sha256sum "alven-bridge-${GITHUB_REF_NAME}.tar.gz" > "alven-bridge-${GITHUB_REF_NAME}.sha256")
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          "dist/alven-bridge-${GITHUB_REF_NAME}.tar.gz"
+          "dist/alven-bridge-${GITHUB_REF_NAME}.sha256"
+          --verify-tag --generate-notes
