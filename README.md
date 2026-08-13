@@ -11,6 +11,9 @@
 <p align="center">
   <a href="#five-minute-setup">Quick start</a> ·
   <a href="#what-it-connects">Capabilities</a> ·
+  <a href="docs/INSTALLATION.md">Installation guide</a> ·
+  <a href="docs/AI_SETUP.md">Private AI</a> ·
+  <a href="docs/STORAGE_SETUP.md">Family storage</a> ·
   <a href="SECURITY.md">Security</a> ·
   <a href="SUPPORT.md">Support</a>
 </p>
@@ -29,7 +32,9 @@ Owner password copied to the machine. Every installation can be revoked from the
 | Capability | Works with | What stays under your control |
 | --- | --- | --- |
 | Private AI | Ollama, LM Studio, or another OpenAI-compatible endpoint | Model, endpoint, prompts processed locally, and compute |
-| Family storage | A mounted disk, server folder, or NAS share | Original family files and the physical storage |
+| Mounted storage | A local folder, mounted disk, server folder, or NAS share | Original family files and the physical storage |
+| WebDAV storage | Nextcloud, Synology WebDAV Server, or another compatible service | Account, server, folder, and original family files |
+| S3-compatible storage | MinIO, Synology-compatible object storage, AWS S3, or another SigV4 service | Bucket, access policy, prefix, and original family files |
 
 Private AI results are treated as untrusted proposals and must pass the same Alven authorization and
 validation rules as managed AI. They consume **zero Smart Actions**. Bridge storage is a file store, not a
@@ -54,6 +59,10 @@ Bridge does not need a public IP, an inbound firewall rule, Kubernetes, or a sep
 
 ## Five-minute setup
 
+Before you begin, make sure Docker is installed and running, sign in to Alven as a Family Owner, and
+decide whether this machine will provide private AI, family storage, or both. The guided setup does not
+need a public IP or an open router port.
+
 ### macOS or Linux
 
 Choose an empty folder where you want to keep the small Bridge configuration and run:
@@ -75,6 +84,11 @@ start the container, wait for its local health endpoint, and open the setup page
 are placed in an `alven-bridge` folder beneath the current directory. Set
 `ALVEN_BRIDGE_INSTALL_DIR` first if you prefer another location.
 
+The one-line installers follow the current public preview. For a long-running home server, review the
+[latest release](https://github.com/IlyaBaikou/Alven-Bridge/releases/latest) and pin the published image
+tag after setup. The [full installation guide](docs/INSTALLATION.md) covers pinned installs, remote
+servers, upgrades, and clean removal.
+
 If you prefer to inspect every command before it runs, download this repository and start manually:
 
 ```bash
@@ -86,13 +100,40 @@ docker compose up -d
 Then complete the four short steps at [http://127.0.0.1:7433](http://127.0.0.1:7433):
 
 1. choose private AI, family storage, or both;
-2. enter only the settings needed by those choices and run the built-in health checks;
-3. create a one-time code in **Alven → More → Storage & AI → Alven Bridge** and pair;
-4. wait for the ready screen to confirm Alven contact and every enabled capability.
+2. enter only the settings needed by those choices, then choose **Save and check**;
+3. in Alven, open **More → Files & Smart Actions → Alven Bridge**, create a one-time code, and pair;
+4. wait for **Ready** to confirm pairing, Alven contact, private AI, and/or storage.
 
 The code expires after ten minutes and works once. A failed or cancelled pairing never selects Bridge as
 the family's storage provider. You can download a content-redacted diagnostic JSON from the final step;
 it contains no prompts, model names, endpoints, paths, file names, credentials, or tokens.
+
+After pairing, return to **Files & Smart Actions** in Alven. Private AI is available without spending
+Smart Actions. If storage is enabled, select **Personal storage** for new originals. Existing files stay
+where they are until the Owner starts and confirms an explicit migration.
+
+### Choose your setup
+
+| I want to… | Continue with |
+| --- | --- |
+| use Ollama or LM Studio without spending Smart Actions | [Private AI setup](docs/AI_SETUP.md) |
+| keep new originals in a local folder or mounted NAS | [Mounted folder / NAS](docs/STORAGE_SETUP.md#mounted-folder-or-nas) |
+| use Nextcloud, Synology WebDAV, or another WebDAV account | [WebDAV](docs/STORAGE_SETUP.md#webdav--nextcloud-or-synology) |
+| use MinIO, Synology-compatible object storage, or AWS S3 | [S3-compatible storage](docs/STORAGE_SETUP.md#s3-compatible-storage) |
+| install on a remote Linux server | [Remote server installation](docs/INSTALLATION.md#remote-linux-server) |
+
+### Confirm that it works
+
+Run the helper from the installation folder:
+
+```bash
+./alven-bridge doctor
+```
+
+On Windows, run `./alven-bridge.ps1 doctor`. A complete setup reports that Docker and the Bridge process
+are healthy, then confirms pairing, Alven contact, and every enabled capability. If the final line needs
+attention, open [http://127.0.0.1:7433](http://127.0.0.1:7433); the readiness cards identify the part that
+still needs configuration.
 
 The published image is `ghcr.io/ilyabaikou/alven-bridge:latest` for `linux/amd64` and `linux/arm64`.
 Tagged releases include provenance, an SBOM, an operator archive, and its SHA-256 checksum. For a durable
@@ -112,6 +153,9 @@ directory traversal, and symbolic-link escapes are rejected.
 Set `BRIDGE_STORAGE_READ_ONLY=true` if Alven should read an existing archive without writing to it.
 Writable roots receive a hidden `.alven-bridge-mount-id` marker. It prevents Bridge from silently writing
 to the wrong disk when a mount disappears or is replaced; do not copy or remove that marker.
+
+See the [storage setup guide](docs/STORAGE_SETUP.md) for the exact preparation, permissions, verification,
+and Alven activation flow for mounted folders, WebDAV, and S3-compatible storage.
 
 ## Connect WebDAV or S3-compatible storage
 
@@ -138,6 +182,9 @@ ssh -L 7433:127.0.0.1:7433 user@your-server
 
 Then open [http://127.0.0.1:7433](http://127.0.0.1:7433) on your own computer. Do not publish port 7433
 through a router or public reverse proxy.
+
+The [remote installation guide](docs/INSTALLATION.md#remote-linux-server) includes the complete sequence,
+including the install command, SSH tunnel, pairing, and readiness check.
 
 ## Everyday operations
 
@@ -193,7 +240,8 @@ volume and the storage mount identity marker.
 
 **Uninstall**
 
-First revoke the machine in **More → Storage & AI**, or choose **Unpair this machine** in the local wizard.
+First revoke the machine in **More → Files & Smart Actions → Alven Bridge**, or choose
+**Unpair this machine** in the local wizard.
 Then run `docker compose down`. Add `--volumes` only when intentionally discarding the local installation
 credential and job receipts. Removing Bridge never removes family files from the mounted folder.
 
